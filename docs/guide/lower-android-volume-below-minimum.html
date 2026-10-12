@@ -29,7 +29,7 @@
   "author": {"@type": "Person", "name": "Rotem Zussman"},
   "publisher": {"@type": "Person", "name": "Rotem Zussman", "alternateName": "Granular Apps"},
   "datePublished": "2026-07-13",
-  "dateModified": "2026-10-06",
+  "dateModified": "2026-10-12",
   "mainEntityOfPage": "https://granularvolume.com/guide/lower-android-volume-below-minimum.html"
 }
 </script>
@@ -76,7 +76,7 @@
     {
       "@type": "Question",
       "name": "Does it work the same way on tablets as on phones?",
-      "acceptedAnswer": {"@type": "Answer", "text": "Yes, identically. On some tablets the lowest volume step is even louder than on a phone, depending on the model, and the underlying fix, negative gain applied through Android's audio effect framework, works the same way on both form factors."}
+      "acceptedAnswer": {"@type": "Answer", "text": "Yes. On some tablets the lowest volume step is even louder than on a phone, depending on the model, and the underlying fix, negative gain applied through Android's audio effect framework, is the same on both form factors. How it behaves depends on the device, so check yours during the seven free days."}
     },
     {
       "@type": "Question",
@@ -111,7 +111,7 @@
     {
       "@type": "Question",
       "name": "Does it conflict with equalizer apps or other volume-control apps installed at the same time?",
-      "acceptedAnswer": {"@type": "Answer", "text": "There are no known conflicts. It layers a gain-reduction effect on top of whatever else is already processing the audio, rather than replacing or overriding another app's effect chain."}
+      "acceptedAnswer": {"@type": "Answer", "text": "It adds its own gain reduction and does not replace another app's effects. Another audio effect on the device can take precedence, though, so check it with your equalizer switched on."}
     },
     {
       "@type": "Question",
@@ -311,7 +311,7 @@
     <div class="icon"><img src="../img/icon.webp" alt="Granular Volume icon"></div>
     <h1>How to lower Android volume below the minimum setting</h1>
     <p class="dek">Every real method, ranked honestly by what actually lowers the floor versus what just adds more clicks in between. No root required for any of these.</p>
-    <p class="meta">Updated October 6, 2026 · 10 min read</p>
+    <p class="meta">Updated October 12, 2026 · 10 min read</p>
   </header>
 <main id="main" tabindex="-1">
 
@@ -430,8 +430,8 @@
     <h2 id="attenuation">9. Apps that go below the floor: the one method that actually lowers it</h2>
     <div class="fixcard">
       <h3>Apps using DynamicsProcessing or LoudnessEnhancer with negative gain <span class="verdict v-works">Actually works</span></h3>
-      <p>A small category of apps takes a fundamentally different approach: instead of remapping the existing volume steps, they apply an audio effect with negative gain on top of the lowest system step, using Android's own audio effect framework (DynamicsProcessing, or LoudnessEnhancer as a fallback on older versions). This genuinely produces output quieter than the hardware minimum allows, because it isn't working within the existing step range at all.</p>
-      <p>This is how <a href="../">Granular Volume</a> works: a small floating dial that sits over any app and adds volume steps below the usual floor, on both phones and tablets, no root, no ADB, no Samsung requirement. It doesn't override your volume buttons or the system volume panel. Since version 1.4.0 the same slider also covers your normal range above the device minimum, in even steps, so it can stand in for <a href="volume-buttons-not-working-android.html">worn or broken volume buttons</a> too.</p>
+      <p>A small category of apps takes a fundamentally different approach: instead of remapping the existing volume steps, they apply an audio effect with negative gain on top of the lowest system step, using Android's own audio effect framework (DynamicsProcessing). This genuinely produces output quieter than the hardware minimum allows, because it isn't working within the existing step range at all.</p>
+      <p>This is how <a href="../">Granular Volume</a> works: a small floating dial that sits over any app and adds volume steps below the usual floor, on both phones and tablets, no root, no ADB, no Samsung requirement. It doesn't override your volume buttons or the system volume panel. It lowers media, ringtones, notifications and alarms. It cannot lower regular phone calls or keyboard and touch sounds, because Android plays those on paths this kind of audio effect does not reach, and on a small number of phone and headphone pairs the quiet steps have no effect over Bluetooth. Since version 1.4.0 the same slider also covers your normal range above the device minimum, in even steps, so it can stand in for <a href="volume-buttons-not-working-android.html">worn or broken volume buttons</a> too.</p>
     </div>
 
     <div class="callout">
@@ -467,7 +467,7 @@
       <dd>Not meaningfully. It runs as a lightweight foreground service that holds the audio effect active; there's no continuous background processing beyond that, so it doesn't add noticeable drain on top of whatever is already playing the audio.</dd>
 
       <dt>Does it work the same way on tablets as on phones?</dt>
-      <dd>Yes, identically. On some tablets the lowest volume step is even louder than on a phone, depending on the model, and the underlying fix works the same way on both form factors.</dd>
+      <dd>Yes. On some tablets the lowest volume step is even louder than on a phone, depending on the model, and the underlying fix is the same on both form factors. How it behaves depends on the device, so check yours during the seven free days.</dd>
 
       <dt>Is this specific to Samsung, Pixel, or another brand, or does it work on any Android device?</dt>
       <dd>It is not tied to one brand. It uses Android's own audio effect APIs rather than a manufacturer-specific feature like Samsung's Good Lock, so unlike Sound Assistant there is no brand restriction. How far below the minimum it reaches still depends on the device and the kind of audio, as the guide on why the minimum is too loud explains.</dd>
@@ -488,7 +488,7 @@
       <dd>It does not add hiss of its own. It's a clean gain-reduction stage, not a compressor, limiter, or equalizer, so it doesn't reshape the signal. What it cannot do is remove a hiss your headphones or amplifier are already producing, because the reduction happens in software before the signal reaches them. Turning the music down leaves that background noise where it was, so it can become relatively easier to hear. If a constant background hiss is the problem rather than loudness, a passive inline volume control on the cable is what addresses that.</dd>
 
       <dt>Does it conflict with equalizer apps or other volume-control apps installed at the same time?</dt>
-      <dd>There are no known conflicts. It layers a gain-reduction effect on top of whatever else is already processing the audio, rather than replacing or overriding another app's effect chain.</dd>
+      <dd>It adds its own gain reduction and does not replace another app's effects. Another audio effect on the device can take precedence, though, so check it with your equalizer switched on.</dd>
 
       <dt>Is Granular Volume free, or does it have a paid tier or in-app purchases?</dt>
       <dd>The app is free to install, and the first seven days after you install are the complete app with nothing held back. After that, keeping the control takes one payment, once, inside the app through Google Play. There are no subscriptions and no ads.</dd>
