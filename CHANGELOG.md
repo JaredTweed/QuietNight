@@ -74,7 +74,7 @@ One idea behind the release: every surface tells the same true story about where
 
 ### Unchanged on purpose
 - Trial length, the long-time-user grant, the price, the audio engine, the tour's order and text (its last
-  card now names the X and the i), and the F-Droid build, which stays free and complete.
+  card now names the X and the i).
 
 ## 1.6.4 (versionCode 43)
 
@@ -149,7 +149,7 @@ One idea behind the release: every surface tells the same true story about where
   the range is locked, an open padlock with a check when it is open, a clock during the free week.
 - No new network access: the app still has no INTERNET permission. Google's billing library is
   built in without its telemetry component; the only new permission is com.android.vending.BILLING
-  (Google Play version only). The F-Droid build has no billing code and stays free and complete.
+  (Google Play version only).
 
 ### Unchanged on purpose
 - Trial length and its anchor, the long-time-user grant, the tour, the dial and the audio engine
@@ -225,8 +225,6 @@ yours, free, permanently.
 - Terms of Use updated for the trial and the optional purchase; the app asks you to accept them once.
 
 ### Unchanged
-- The F-Droid build includes everything at no charge, permanently, with no trial and no purchase
-  feature in it.
 - No ads, no tracking, no accounts, and still no internet permission in any version.
 
 ## 1.4.8 (versionCode 28)
@@ -239,6 +237,8 @@ Two fixes on the production line, both first written for the coming 1.5.0 and ba
 
 ## 1.4.6 (versionCode 18)
 
+*Correction, September 2026: regular cellular calls are not lowered. Android plays them on a path this audio effect does not reach. Calls in apps are lowered only where the phone plays them on the media path.*
+
 Reliability release for in-call control, closing the intermittency 1.4.5 left behind. That release re-attached the audio effect once, at the instant the audio mode changed, and that single moment can lose three races: on some phones the call's output path opens a beat after the mode flips, so the re-attach landed on the old path; switching to speaker or Bluetooth mid-call moved the voice audio to an output the effect never followed; and a transient effect-initialisation failure during call setup stranded the app on the weaker fallback with no retry. Each race explains the same field report: control worked in some calls and not in others.
 
 All three are closed. Every re-attach now runs twice, immediately and again one second later once routing has settled. Route changes during a call (speaker, Bluetooth, wired) trigger their own re-attach. And if the effect lands on the fallback strategy, the app retries up to three times. Every pass preserves the chosen attenuation level, and all passes are idempotent, so the worst case of an extra pass is a few silent milliseconds.
@@ -246,6 +246,8 @@ All three are closed. Every re-attach now runs twice, immediately and again one 
 Verified on real hardware across consecutive calls with mid-call speaker switching, and on an emulator across rapid mode-change stress, a live GSM call, and effect-chain integrity checks: exactly one effect chain at all times, no crashes, level preserved through every transition.
 
 ## 1.4.5 (versionCode 17)
+
+*Correction, September 2026: regular cellular calls are not lowered. Android plays them on a path this audio effect does not reach. Calls in apps are lowered only where the phone plays them on the media path.*
 
 In-call fix for the quiet zone, from two matching field reports reproduced at the audio-engine layer. A global audio effect lives on one output path, chosen by the system when the effect is created, and that choice follows where music plays. Call audio, both cellular and VoIP, travels a different output path on many phones, so the quiet zone's attenuation never reached it: steps below the line did nothing during calls while working normally for media on the same device.
 
@@ -268,6 +270,8 @@ A physical volume key press that lands inside a step used to look like nothing h
 Volume behaviour is untouched. The step values, the 5 dB rungs, the audio effect and the absorb policy are byte-identical to 1.4.3.
 
 ## 1.4.3 (versionCode 15)
+
+*Correction, September 2026: regular cellular calls are not lowered. Android plays them on a path this audio effect does not reach. Calls in apps are lowered only where the phone plays them on the media path.*
 
 In-call control, closing the one case where the dial and the physical keys still disagreed. During a cellular or VoIP call, Android routes the physical volume keys to the call volume, a third scale separate from media and ringtone. The dial's upper zone stayed on media volume, so moving it during a call changed nothing audible. The upper zone now follows the same rule as the keys: during a call it drives the call volume, using the call scale's real hardware steps, and the moment the call ends it returns to media volume. The call state is evaluated at the moment of each interaction, the same way Android itself resolves the keys, so this needs no new permissions.
 

@@ -11,6 +11,8 @@ device-minimum line, in even steps, and keeps going below it.*
 
 *Listed on Google Play as "Volume Control: Quiet Dial". Same app, same developer.*
 
+**[Get it on Google Play](https://play.google.com/store/apps/details?id=granularvolume.com&referrer=utm_source%3Dgithub%26utm_medium%3Dreadme%26utm_campaign%3Dinstall)**
+
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Android-green.svg)](#)
 [![Min SDK](https://img.shields.io/badge/minSdk-28-orange.svg)](#)
@@ -130,9 +132,9 @@ In the interest of being straightforward about what this app does and doesn't do
 <th>The problem</th><th>The whole range</th><th>Broken buttons</th>
 </tr>
 <tr>
-<td><img src="store-assets/screenshot_1.png" width="260" alt="When the lowest setting is still too loud"></td>
-<td><img src="store-assets/screenshot_2.png" width="260" alt="One slider, the whole volume range"></td>
-<td><img src="store-assets/screenshot_3.png" width="260" alt="Works when your volume buttons do not"></td>
+<td><img src="docs/img/shot1.png" width="260" alt="When the lowest setting is still too loud"></td>
+<td><img src="docs/img/shot2.png" width="260" alt="One dial, the whole volume range"></td>
+<td><img src="docs/img/shot3.png" width="260" alt="Works when your volume buttons do not"></td>
 </tr>
 </table>
 
@@ -154,7 +156,7 @@ rather than just read about it.
 - **Android 9.0 (API 28) and up**: this is the actual `minSdk` in `android/app/build.gradle.kts`. If you've seen "Android 8+" mentioned elsewhere by mistake, this README and the app's own listing are the source of truth.
 - **Phones and tablets alike.** The attenuation is applied to the global audio session, not to a specific screen size or form factor, so it behaves identically on both.
 - **No root required.**
-- Distributed as two build flavors: `play` (Google Play: a seven-day trial, then a one-time purchase inside the app through Google Play Billing, plus an optional in-app review prompt) and `fdroid` (F-Droid: free and complete, zero Google Play dependencies; see [Building from source](#building-from-source)).
+- Distributed as two build flavors: `play` (Google Play: a seven-day trial, then a one-time purchase inside the app through Google Play Billing, plus an optional in-app review prompt) and `fdroid` (zero Google Play dependencies; see [Building from source](#building-from-source)).
 
 ## FAQ
 
@@ -183,10 +185,10 @@ Usually, yes. The attenuation is applied to Android's output mix before it reach
 The underlying mechanism is identical. On some tablets the minimum step is louder than on a phone (see [Why the minimum step exists](#why-the-minimum-step-exists-and-why-its-still-too-loud) above). It depends on the model, and where it is the case, the extra headroom matters even more.
 
 **Is there a Pro or paid version?**
-There is no separate Pro build. On Google Play the complete app comes with a seven-day trial, and after that a one-time purchase inside the app keeps every feature; nothing renews and there is no subscription. On F-Droid every feature is included at no charge, permanently. Either way the code is open source under GPL-3.0.
+There is no separate Pro build. On Google Play the complete app comes with a seven-day trial, and after that a one-time purchase inside the app keeps every feature; nothing renews and there is no subscription. The code is open source under GPL-3.0.
 
 **Why is there a Play flavor and an F-Droid flavor?**
-F-Droid requires that everything in its build be free and open source, including build dependencies. The `play` flavor includes three proprietary Google libraries: Play Billing, for the one-time unlock; the in-app review library, only used to occasionally ask for a Play Store rating; and the in-app update library, used to show that a newer version is waiting on Google Play. All three talk to the Play Store app on the device, and the app itself still has no internet permission; the `fdroid` flavor has zero Google Play code. The two also differ in a way that is deliberate rather than technical: the Play build comes with a seven-day trial and then needs a one-time unlock, while **the F-Droid build is free and complete, permanently**, with every step included and nothing to buy. Its `KeyCheck` stub simply answers true. See [`build.gradle.kts`](android/app/build.gradle.kts) for the exact flavor split.
+F-Droid requires that everything in its build be free and open source, including build dependencies. The `play` flavor includes three proprietary Google libraries: Play Billing, for the one-time unlock; the in-app review library, only used to occasionally ask for a Play Store rating; and the in-app update library, used to show that a newer version is waiting on Google Play. All three talk to the Play Store app on the device, and the app itself still has no internet permission; the `fdroid` flavor has zero Google Play code. See [`build.gradle.kts`](android/app/build.gradle.kts) for the exact flavor split.
 
 **Why not just make Android's default minimum volume lower?**
 That's not something a regular app can change. The per-step volume curve is defined by the device manufacturer at the OS/firmware level, not exposed to third-party apps through any public API. Adding attenuation on top, outside the standard volume steps entirely, is the practical mechanism available to an app that isn't the device's own system software. Re-encoding a file to be quieter also works, but only per file and never for streaming.
@@ -240,7 +242,7 @@ android/                        Android project (Gradle root)
     build.gradle.kts
   build.gradle.kts
   settings.gradle.kts
-store-assets/                   Store icon, feature graphic, screenshots, privacy policy
+store-assets/                   Store icon, feature graphic, screenshots
 video/assets/                   Promo and card source files
 fdroid-reference/               Reproducible-build verification artifacts for F-Droid
 ```
@@ -262,7 +264,7 @@ cd android
 ./gradlew assembleFdroidRelease
 ```
 
-The `play` and `fdroid` flavors share the same `applicationId` and the same attenuation and overlay behavior. The `play` build adds the seven-day trial, the one-time unlock through Google Play Billing (and with it the `com.android.vending.BILLING` permission) and the optional in-app review prompt; the `fdroid` build has none of these and includes every step at no charge (see [FAQ](#faq)).
+The `play` and `fdroid` flavors share the same `applicationId` and the same attenuation and overlay behavior. The `play` build adds the seven-day trial, the one-time unlock through Google Play Billing (and with it the `com.android.vending.BILLING` permission) and the optional in-app review prompt; the `fdroid` build has none of these.
 
 ### Signing
 
