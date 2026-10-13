@@ -461,7 +461,7 @@ class FullRangeCoordinator(
         // Calibration previews MEDIA at normal gain; it must not change a call's sound.
         if (streamVol.inCall() || streamVol.activeBluetoothName() != deviceName) return
         val media = AudioManager.STREAM_MUSIC
-        val floor = index.coerceIn(maxOf(1, am.getStreamMinVolume(media)), streamVol.maxIndex(media))
+        val floor = index.coerceIn(maxOf(1, am.getStreamMinVolume(media)), streamVol.calibrationMaxIndex())
         Prefs.setBluetoothFloor(appContext, deviceName, floor)
         // The floor is also the bottom of the upper ladder. Rebuild it immediately.
         refreshCurve()

@@ -391,7 +391,7 @@ class InfoSheetActivity : AppCompatActivity() {
         if (volume.inCall()) return null
         val name = volume.activeBluetoothName() ?: return null
         val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val max = volume.calibrationMaxIndex()
         val min = maxOf(1, am.getStreamMinVolume(AudioManager.STREAM_MUSIC))
         val current = Prefs.getBluetoothFloor(this, name).coerceIn(min, max)
         return LinearLayout(this).apply {
@@ -400,9 +400,17 @@ class InfoSheetActivity : AppCompatActivity() {
                 colorRes = R.color.gv_text_primary))
             addView(text(getString(R.string.gv_bluetooth_floor_help), 12f,
                 colorRes = R.color.gv_text_secondary).topPad(4))
+            addView(text(getString(R.string.gv_bluetooth_floor_limit, min, max), 12f,
+                colorRes = R.color.gv_text_secondary).topPad(4))
             val row = LinearLayout(this@InfoSheetActivity).apply { gravity = Gravity.CENTER_VERTICAL }
             val value = text("$current", 16f, bold = true, colorRes = R.color.gv_text_primary)
+            val down = Button(this@InfoSheetActivity)
+            val up = Button(this@InfoSheetActivity)
             var selected = current
+            fun updateButtons() {
+                down.isEnabled = selected > min
+                up.isEnabled = selected < max
+            }
             fun change(delta: Int) {
                 if (!ControlLive.running || volume.inCall() || volume.activeBluetoothName() != name) {
                     rerender()
@@ -410,24 +418,27 @@ class InfoSheetActivity : AppCompatActivity() {
                 }
                 val next = (selected + delta)
                     .coerceIn(min, max)
+                if (next == selected) return
                 selected = next
                 value.text = "$next"
+                updateButtons()
                 startService(Intent(this@InfoSheetActivity, VolumeControlService::class.java)
                     .setAction(VolumeControlService.ACTION_CALIBRATE_BLUETOOTH_FLOOR)
                     .putExtra(VolumeControlService.EXTRA_BLUETOOTH_NAME, name)
                     .putExtra(VolumeControlService.EXTRA_BLUETOOTH_FLOOR, next))
             }
-            row.addView(Button(this@InfoSheetActivity).apply {
+            row.addView(down.apply {
                 text = "−"
                 contentDescription = getString(R.string.gv_bluetooth_floor_lower)
                 setOnClickListener { change(-1) }
             })
             row.addView(value.apply { setPadding(dp(18), 0, dp(18), 0) })
-            row.addView(Button(this@InfoSheetActivity).apply {
+            row.addView(up.apply {
                 text = "+"
                 contentDescription = getString(R.string.gv_bluetooth_floor_raise)
                 setOnClickListener { change(1) }
             })
+            updateButtons()
             addView(row.topPad(8))
         }
     }

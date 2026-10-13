@@ -80,10 +80,16 @@ class StreamVolumeController(context: Context) {
     /** Lowest non-mute index, or the listener's calibrated floor for this headset. */
     fun minAudibleIndex(stream: Int): Int {
         val min = maxOf(1, am.getStreamMinVolume(stream))
-        if (stream != AudioManager.STREAM_MUSIC) return min
+        if (stream != AudioManager.STREAM_MUSIC || !Prefs.hasBluetoothCalibration(appContext)) return min
         val name = activeBluetoothName() ?: return min
-        return Prefs.getBluetoothFloor(appContext, name).coerceIn(min, maxIndex(stream))
+        return Prefs.getBluetoothFloor(appContext, name).coerceIn(min, calibrationMaxIndex())
     }
+
+    /** Limit previews to four steps above the lowest nonzero index, bounded by stream max. */
+    fun calibrationMaxIndex(): Int = minOf(
+        maxIndex(AudioManager.STREAM_MUSIC),
+        maxOf(1, am.getStreamMinVolume(AudioManager.STREAM_MUSIC)) + 4
+    )
 
     /** The media route's Bluetooth output; its acoustic curve is not exposed by Android. */
     fun activeBluetoothName(): String? {

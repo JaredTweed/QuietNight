@@ -75,6 +75,46 @@ class BluetoothFloorTest {
         ShadowSystemClock.advanceBy(Duration.ofSeconds(2))
     }
 
+    @Test fun uncalibratedVolumeHandlingNeverQueriesMediaRoute() {
+        route(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP)
+        repeat(3) { assertEquals(1, volume.minAudibleIndex(AudioManager.STREAM_MUSIC)) }
+        coordinator.applyQuiet(-20f)
+        index = 2
+        coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 1, 2)
+        verify(am, never()).getAudioDevicesForAttributes(any(AudioAttributes::class.java))
+        assertEquals(1, index)
+        assertEquals(-15f, audio.attenuationDb.value)
+    }
+
+    @Test fun firstCalibrationEnablesRouteLookupAfterUncalibratedFastPath() {
+        route(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP)
+        assertEquals(1, volume.minAudibleIndex(AudioManager.STREAM_MUSIC))
+        Prefs.setBluetoothFloor(context, "Headset", 2)
+        assertEquals(2, volume.minAudibleIndex(AudioManager.STREAM_MUSIC))
+    }
+
+    @Test fun legacyCalibrationIsDetectedWithoutPresenceFlag() {
+        route(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP)
+        context.getSharedPreferences("gv_prefs", Context.MODE_PRIVATE).edit()
+            .putInt("bluetooth_floor_Headset", 2).commit()
+        assertEquals(2, volume.minAudibleIndex(AudioManager.STREAM_MUSIC))
+        assertTrue(Prefs.hasBluetoothCalibration(context))
+    }
+
+    @Test fun calibrationCommandCannotPreviewAboveFourStepsOverMinimum() {
+        route(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP)
+        coordinator.calibrateBluetoothFloor("Headset", 15)
+        assertEquals(listOf(5 to 0f), writes)
+        assertEquals(5, Prefs.getBluetoothFloor(context, "Headset"))
+    }
+
+    @Test fun calibrationCapRespectsStreamMaximumAndNonzeroSystemMinimum() {
+        `when`(am.getStreamMinVolume(AudioManager.STREAM_MUSIC)).thenReturn(2)
+        assertEquals(6, volume.calibrationMaxIndex())
+        `when`(am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)).thenReturn(3)
+        assertEquals(3, volume.calibrationMaxIndex())
+    }
+
     @Test fun enteringQuietFromSilentHeadsetIndexAppliesGainBeforeRaisingHardware() {
         route(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP)
         Prefs.setBluetoothFloor(context, "Headset", 2)
@@ -103,7 +143,7 @@ class BluetoothFloorTest {
     @Test fun storedFloorIsClampedToCurrentDeviceRange() {
         route(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP)
         Prefs.setBluetoothFloor(context, "Headset", 100)
-        assertEquals(15, volume.minAudibleIndex(AudioManager.STREAM_MUSIC))
+        assertEquals(5, volume.minAudibleIndex(AudioManager.STREAM_MUSIC))
         Prefs.setBluetoothFloor(context, "Headset", -1)
         assertEquals(1, volume.minAudibleIndex(AudioManager.STREAM_MUSIC))
     }
@@ -212,6 +252,7 @@ class BluetoothFloorTest {
     }
 
     @Test fun routeQueryFailureKeepsDefaultFloor() {
+        Prefs.setBluetoothFloor(context, "Headset", 2)
         `when`(am.getAudioDevicesForAttributes(any(AudioAttributes::class.java)))
             .thenThrow(IllegalStateException("Audio service unavailable"))
         assertEquals(1, volume.minAudibleIndex(AudioManager.STREAM_MUSIC))
