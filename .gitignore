@@ -122,3 +122,14 @@ CLAUDE.md
 
 # ----- legal drafts / lawyer package (never commit) -----
 legal/
+
+# Untracked 2026-10-12: stale or internal copies (kept on disk)
+fdroid/granularvolume.com.yml
+store-assets/privacy-policy.html
+store-assets/terms-of-use.html
+store-assets/apply_price_qualifier.py
+store-assets/gen_marketing.py
+store-assets/gen_marketing_v[2-5].py
+store-assets/BRAND.md
+store-assets/DESIGN-PHILOSOPHY.md
+video/VEO-PROMO-BRIEF.md

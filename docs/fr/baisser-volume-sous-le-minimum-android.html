@@ -11,10 +11,12 @@
 <link rel="alternate" hreflang="de" href="https://granularvolume.com/de/lautstaerke-unter-minimum-android.html">
 <link rel="alternate" hreflang="es" href="https://granularvolume.com/es/bajar-volumen-por-debajo-del-minimo-android.html">
 <link rel="alternate" hreflang="fr" href="https://granularvolume.com/fr/baisser-volume-sous-le-minimum-android.html">
+<link rel="alternate" hreflang="it" href="https://granularvolume.com/it/abbassare-volume-sotto-il-minimo-android.html">
+<link rel="alternate" hreflang="pt-BR" href="https://granularvolume.com/pt/baixar-volume-abaixo-do-minimo-android.html">
 <link rel="alternate" hreflang="x-default" href="https://granularvolume.com/guide/lower-android-volume-below-minimum.html">
 <meta property="og:title" content="Baisser le volume Android sous le minimum">
 <meta property="og:description" content="Le volume minimum reste trop fort ? Pourquoi la dernière marche est si haute, et ce qui permet vraiment de descendre plus bas, sans root.">
-<meta property="og:image" content="../img/feature.png">
+<meta property="og:image" content="https://granularvolume.com/img/feature.png">
 <meta property="og:type" content="article">
 <link rel="icon" href="../img/icon.png">
 <script type="application/ld+json">
@@ -28,7 +30,7 @@
   "publisher": {"@type": "Person", "name": "Rotem Zussman", "alternateName": "Granular Apps"},
   "inLanguage": "fr",
   "datePublished": "2026-09-01",
-  "dateModified": "2026-09-01",
+  "dateModified": "2026-10-12",
   "mainEntityOfPage": "https://granularvolume.com/fr/baisser-volume-sous-le-minimum-android.html"
 }
 </script>
@@ -174,7 +176,7 @@
     <div class="icon"><img src="../img/icon.webp" alt="Icône Granular Volume"></div>
     <h1>Baisser le volume Android sous le minimum</h1>
     <p class="dek">Vous avez baissé le son jusqu'en bas et c'est encore trop fort. Ce n'est ni une panne ni un réglage caché : la dernière marche avant le silence est placée volontairement haut. Voici pourquoi, et ce qui permet réellement de descendre en dessous.</p>
-    <p class="meta">Publié le 1er septembre 2026 &middot; 7 min de lecture</p>
+    <p class="meta">Publié le 1er septembre 2026, mis à jour le 12 octobre 2026 &middot; 7 min de lecture</p>
   </header>
 <main id="main" tabindex="-1">
 
@@ -198,6 +200,8 @@
     <p>Android ne mémorise pas un niveau sonore, il mémorise un numéro de cran, en général de zéro à quinze environ pour le multimédia. Ce numéro est ensuite converti en gain, c'est-à-dire en une multiplication appliquée au son au moment du mixage.</p>
 
     <p>Deux conséquences en découlent, et elles expliquent presque tout. D'abord, le bas de l'échelle est une valeur décidée, pas une limite physique : le cran numéro un correspond à une fraction précise du volume maximal, choisie par la plateforme puis ajustée par le fabricant, en imaginant des usages plutôt bruyants. Ensuite, il n'existe rien entre le cran un et le silence. Ce que vous ressentez comme un problème est exactement ce vide.</p>
+
+    <p>Cela vaut aussi pour les tablettes Android. Sur certains modèles, le premier cran est même plus fort que sur un téléphone, selon l'appareil, et aucun réglage intégré ne descend en dessous. La méthode décrite plus bas fonctionne de la même façon sur tablette. Les tablettes Amazon Fire font exception pour l'application, car elles n'ont pas Google Play.</p>
 
     <h2 id="methodes">Ce qui marche, évalué honnêtement</h2>
 
@@ -243,13 +247,12 @@
 
     <div class="callout">
       <h2>L'application</h2>
-      <p>Granular Volume est un curseur flottant qui applique exactement ce principe : une atténuation plate sur la sortie mélangée de l'appareil, sept crans de 0 à moins 30 décibels sous le minimum du système, plus la plage de volume habituelle au-dessus, ce qui dépanne aussi ceux dont les touches de volume ne répondent plus.</p>
+      <p>Granular Volume est un curseur flottant qui applique exactement ce principe : une atténuation plate sur la sortie mélangée de l'appareil, six crans plus bas, de 5 décibels chacun, jusqu'à 30 décibels sous le minimum du système, plus la plage de volume habituelle au-dessus, ce qui dépanne aussi ceux dont les touches de volume ne répondent plus.</p>
       <p>Code source ouvert sous GPL-3.0, moins de 3 Mo, sans publicité, sans compte, et <strong>sans aucune autorisation d'accès à Internet</strong>, ce qui signifie qu'elle n'a aucun moyen d'envoyer quoi que ce soit où que ce soit. Cela se vérifie sur le paquet installé, et pas seulement dans une politique de confidentialité.</p>
       <div class="cta">
         <a class="btn btn-primary" href="https://play.google.com/store/apps/details?id=granularvolume.com&amp;hl=fr&amp;referrer=utm_source%3Dsite%26utm_medium%3Dguide%26utm_campaign%3Dguide-fr" data-goatcounter-click="play-cta-baisser-volume-sous-le-minimum-android">Télécharger sur Google Play</a>
-        <a class="btn btn-ghost" href="https://f-droid.org/packages/granularvolume.com/">Sur F-Droid</a>
       </div>
-      <p class="note">Installation gratuite, et les sept premiers jours donnent l'application complète, sans rien de bloqué. Ensuite, conserver le contrôle demande un paiement unique. Rien ne se renouvelle et il n'y a aucun abonnement à résilier. La version F-Droid reste complète et gratuite.</p>
+      <p class="note">Installation gratuite, et les sept premiers jours donnent l'application complète, sans rien de bloqué. Ensuite, conserver le contrôle demande un paiement unique. Rien ne se renouvelle et il n'y a aucun abonnement à résilier.</p>
     </div>
 
     <h2 id="faq">Questions fréquentes</h2>
@@ -288,7 +291,9 @@
     Autres langues :
     <a href="../guide/lower-android-volume-below-minimum.html" hreflang="en">English</a> &middot;
     <a href="../de/lautstaerke-unter-minimum-android.html" hreflang="de">Deutsch</a> &middot;
-    <a href="../es/bajar-volumen-por-debajo-del-minimo-android.html" hreflang="es">Español</a>.
+    <a href="../es/bajar-volumen-por-debajo-del-minimo-android.html" hreflang="es">Español</a> &middot;
+    <a href="../it/abbassare-volume-sotto-il-minimo-android.html" hreflang="it" lang="it">Italiano</a> &middot;
+    <a href="../pt/baixar-volume-abaixo-do-minimo-android.html" hreflang="pt-BR" lang="pt-BR">Português</a>.
     <br>
     Voir aussi :
     <a href="../guide/why-android-minimum-volume-is-too-loud.html">le fonctionnement technique en détail</a> &middot;

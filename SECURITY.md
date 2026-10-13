@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-If you find a security issue in Granular Volume, please report it privately rather than opening a public issue. Use the GitHub "Report a vulnerability" feature on this repository, or email the maintainer. You can expect an acknowledgement within a few days.
+If you find a security issue in Granular Volume, please report it privately rather than opening a public issue. Email the maintainer at rotemzus@gmail.com. You can expect an acknowledgement within a few days.
 
 ## Scope and data handling
 

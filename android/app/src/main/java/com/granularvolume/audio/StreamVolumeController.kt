@@ -87,16 +87,27 @@ class StreamVolumeController(context: Context) {
 
     /** The media route's Bluetooth output; its acoustic curve is not exposed by Android. */
     fun activeBluetoothName(): String? {
-        val outputs = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        // Connected devices are not necessarily routed devices. Older Android has no
+        // public prospective media-route query, so keep its existing floor unchanged.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return null
+        val outputs = try {
             am.getAudioDevicesForAttributes(
                 AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build()
             )
-        } else {
-            // Older Android cannot report the prospective media route. Only use a
-            // calibration when exactly one wireless output is connected.
-            am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).toList()
+        } catch (e: RuntimeException) {
+            Log.w(tag, "Media route query failed; using the default floor", e)
+            return null
         }
-        val wireless = outputs.filter { it.type in BLUETOOTH_MEDIA_TYPES }
+        if (outputs.size != 1) return null
+        val wireless = outputs.filter {
+            when (it.type) {
+                AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+                AudioDeviceInfo.TYPE_BLE_HEADSET,
+                AudioDeviceInfo.TYPE_BLE_SPEAKER,
+                AudioDeviceInfo.TYPE_HEARING_AID -> true
+                else -> false
+            }
+        }
         if (wireless.size != 1) return null
         return wireless.single().productName?.toString()?.takeIf { it.isNotBlank() }
     }
@@ -170,12 +181,6 @@ class StreamVolumeController(context: Context) {
     }
 
     companion object {
-        private val BLUETOOTH_MEDIA_TYPES = setOf(
-            AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
-            AudioDeviceInfo.TYPE_BLE_HEADSET,
-            AudioDeviceInfo.TYPE_BLE_SPEAKER,
-            AudioDeviceInfo.TYPE_HEARING_AID
-        )
         // Generous, because the value must also match — see wasSelfChange.
         private const val SELF_CHANGE_WINDOW_MS = 1_500L
     }

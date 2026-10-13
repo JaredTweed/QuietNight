@@ -9,7 +9,7 @@
 <link rel="canonical" href="https://granularvolume.com/guide/why-android-minimum-volume-is-too-loud.html">
 <meta property="og:title" content="Why Android's Lowest Volume Step Is Still Too Loud">
 <meta property="og:description" content="Android's volume floor is a design decision in the audio mixer, not a bug. Where it comes from, and what can and cannot get underneath it.">
-<meta property="og:image" content="../img/feature.png">
+<meta property="og:image" content="https://granularvolume.com/img/feature.png">
 <meta property="og:type" content="article">
 <link rel="icon" href="../img/icon.png">
 <script type="application/ld+json">
@@ -22,7 +22,7 @@
   "author": {"@type": "Person", "name": "Rotem Zussman"},
   "publisher": {"@type": "Person", "name": "Rotem Zussman", "alternateName": "Granular Apps"},
   "datePublished": "2026-09-01",
-  "dateModified": "2026-09-01",
+  "dateModified": "2026-10-12",
   "mainEntityOfPage": "https://granularvolume.com/guide/why-android-minimum-volume-is-too-loud.html"
 }
 </script>
@@ -35,7 +35,7 @@
     {"@type":"Question","name":"Do apps that add more volume steps fix this?","acceptedAnswer":{"@type":"Answer","text":"They solve a different problem. More steps means finer resolution between the floor and maximum, so you can land closer to the level you want. That is genuinely useful when the jump between two steps is too big. It is a separate question from where the bottom of the range sits, because both still work through Android's own stream volume."}},
     {"@type":"Question","name":"Why can nothing lower the keyboard and touch sounds?","acceptedAnswer":{"@type":"Answer","text":"Keyboard clicks and interface taps are played through Android's low-latency output path, which deliberately skips post-processing because effects add delay and low latency is the entire reason that path exists. An app that attenuates by attaching an effect to the mixed output cannot reach sounds that never pass through it. This is a boundary in Android's audio architecture, not a limitation of any particular app."}},
     {"@type":"Question","name":"How can an app go below the system minimum at all?","acceptedAnswer":{"@type":"Answer","text":"By working at a different layer. Android lets an app attach an audio effect to session 0, which is the mixed output of the whole device, after the mixer has combined every app's audio and before it reaches the audio hardware. A gain applied there is multiplied into the already mixed signal, so it is independent of where the volume slider bottoms out."}},
-    {"@type":"Question","name":"Does this work on every device?","acceptedAnswer":{"@type":"Answer","text":"No, and anyone claiming otherwise is guessing. The mechanism is standard Android, but device makers can substitute their own audio processing, and some hardware routes certain audio outside the path an app can reach. Call audio in particular varies by handset, and fixed-volume outputs such as some car connections are set by the receiving device rather than by the phone."}},
+    {"@type":"Question","name":"Does this work on every device?","acceptedAnswer":{"@type":"Answer","text":"No, and anyone claiming otherwise is guessing. The mechanism is standard Android, but device makers can substitute their own audio processing, and some hardware routes certain audio outside the path an app can reach. Regular phone calls are out of reach entirely, app calls vary by phone, and fixed-volume outputs such as some car connections are set by the receiving device rather than by the phone."}},
     {"@type":"Question","name":"Does it need root or a computer?","acceptedAnswer":{"@type":"Answer","text":"No. The audio effect API this relies on is a normal part of Android from version 9 onwards. It needs permission to draw over other apps and standard audio permissions, and it works without root, without ADB and without a computer."}}
   ]
 }
@@ -176,7 +176,7 @@
     <div class="icon"><img src="../img/icon.webp" alt="Granular Volume icon"></div>
     <h1>Why Android's lowest volume step is still too loud</h1>
     <p class="dek">The floor is not a bug and it is not your imagination. It is a number chosen inside Android's audio mixer, and it sits where it sits for reasons that have nothing to do with your bedroom at two in the morning. Here is where it comes from, what can get underneath it, and what nothing can.</p>
-    <p class="meta">Published September 1, 2026 &middot; 9 min read</p>
+    <p class="meta">Updated October 12, 2026 &middot; 9 min read</p>
   </header>
 <main id="main" tabindex="-1">
 
@@ -234,7 +234,7 @@
           <tr><td>Mixer thread</td><td>Media, ringtones, notifications, alarms</td><td class="yes">Yes</td></tr>
           <tr><td>Fast mixer</td><td>Keyboard clicks, interface taps, system sound pool, low-latency game audio</td><td class="no">Bypassed by design</td></tr>
           <tr><td>Direct or offloaded output</td><td>Compressed audio handed straight to a hardware decoder</td><td class="no">Usually not</td></tr>
-          <tr><td>Telephony</td><td>The cellular voice path</td><td>Varies by handset</td></tr>
+          <tr><td>Telephony</td><td>The cellular voice path</td><td>No effects run here</td></tr>
         </tbody>
       </table>
     </div>
@@ -277,8 +277,8 @@
     </div>
 
     <div class="fixcard">
-      <h3>Calls vary by handset</h3>
-      <p>App calls such as WhatsApp are attenuated along with everything else on phones that play them as an ordinary app through the mixed output. Some handsets route that audio down the voice path instead, and there it is out of reach. Regular phone calls are not. Cellular voice is carried on a separate output that runs no audio effects at all, which was read directly from the system audio engine during a live call, so this is a limit of Android rather than a per-device difference.</p>
+      <h3>Regular calls are out of reach; app calls vary by phone</h3>
+      <p>App calls such as WhatsApp are attenuated along with everything else on phones that play them as an ordinary app through the mixed output. Some handsets route that audio down the voice path instead, and there it is out of reach. Regular phone calls are never attenuated. Cellular voice is carried on a separate output that runs no audio effects at all, which was read directly from the system audio engine during a live call, so this is a limit of Android rather than a per-device difference.</p>
     </div>
 
     <div class="fixcard">
@@ -293,13 +293,12 @@
 
     <div class="callout">
       <h2>Where this leads</h2>
-      <p>This article describes the mechanism, not a product, because the mechanism is the useful part and it stays true whatever anyone builds on it. That said, I wrote it while building on it. Granular Volume is a floating dial that applies exactly this: a flat attenuator on the device's mixed output, seven steps from 0 to minus 30 decibels, plus the ordinary volume range above the device minimum for anyone whose physical buttons have failed.</p>
+      <p>This article describes the mechanism, not a product, because the mechanism is the useful part and it stays true whatever anyone builds on it. That said, I wrote it while building on it. Granular Volume is a floating dial that applies exactly this: a flat attenuator on the device's mixed output, six quieter steps of 5 decibels each, down to 30 decibels below the device minimum, plus the ordinary volume range above the device minimum for anyone whose physical buttons have failed.</p>
       <p>It is open source under GPL-3.0, weighs under 3 MB, and requests no internet permission at all, which means it has no way to send anything anywhere. That last part is not a promise in a policy document, it is something you can confirm by looking at the installed package.</p>
       <div class="cta">
         <a class="btn btn-primary" href="https://play.google.com/store/apps/details?id=granularvolume.com&amp;referrer=utm_source%3Dsite%26utm_medium%3Dguide%26utm_campaign%3Dguide-mechanism" data-goatcounter-click="play-cta-why-android-minimum-volume-is-too-loud">Get it on Google Play</a>
-        <a class="btn btn-ghost" href="https://f-droid.org/packages/granularvolume.com/">Get it on F-Droid</a>
       </div>
-      <p class="note">Free to install, and the first seven days after you install are the complete app with nothing held back. After that, keeping the control takes one payment, once. Nothing renews. The F-Droid build has every step at no charge, and the source is on <a href="https://github.com/Rzuss/granular-volume">GitHub</a>.</p>
+      <p class="note">Free to install, and the first seven days after you install are the complete app with nothing held back. After that, keeping the control takes one payment, once. Nothing renews. The source is on <a href="https://github.com/Rzuss/granular-volume">GitHub</a>.</p>
     </div>
 
     <h2 id="faq">Questions people actually ask</h2>
@@ -333,7 +332,7 @@
     <a href="https://github.com/Rzuss/granular-volume/blob/main/LICENSE">GNU GPL-3.0</a>.
     <a href="https://rzuss.github.io/granular-volume-privacy/">Privacy Policy</a> &middot;
     <a href="https://rzuss.github.io/granular-volume-privacy/terms-of-use.html">Terms of Use</a> &middot; <a href="https://rzuss.github.io/granular-volume-privacy/terms-of-use.html#refunds">Refunds</a> &middot;
-    <a href="../accessibility.html">Accessibility</a>.
+    <a href="../help.html">Help</a> · <a href="../accessibility.html">Accessibility</a>.
     <br>
     See also:
     <a href="lower-android-volume-below-minimum.html">every method for going below the minimum, ranked</a> &middot;

@@ -7,9 +7,11 @@
 **Volume below Android's minimum. A floating control that stays above any app.**
 
 *It also stands in for broken volume buttons: the slider drives normal system volume above the
-device-minimum line, in even 5 dB steps, and keeps going below it.*
+device-minimum line, in even steps, and keeps going below it.*
 
 *Listed on Google Play as "Volume Control: Quiet Dial". Same app, same developer.*
+
+**[Get it on Google Play](https://play.google.com/store/apps/details?id=granularvolume.com&referrer=utm_source%3Dgithub%26utm_medium%3Dreadme%26utm_campaign%3Dinstall)**
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Android-green.svg)](#)
@@ -47,7 +49,7 @@ The stepped design exists for a real reason: discrete steps are predictable and 
 
 The problem is that "predictable steps" and "quiet enough" are different goals, and Android's volume system was only ever designed to solve the first one. Manufacturers set the step curve based on the device's overall loudness range, not based on any accessibility or comfort floor. There is no requirement that step 1 be quiet in any absolute sense, only that it be quieter than step 2.
 
-So: sensitive IEMs, bone-conduction headphones, tablet speakers (which often have an even higher minimum than phone speakers, because tablets are usually driven louder to fill more room), a sleeping baby a few feet away, tinnitus, a library, 2 a.m.: all of these need something below step 1, and Android's own settings simply do not offer it.
+So: sensitive IEMs, bone-conduction headphones, tablet speakers (on some tablets the minimum step is louder than on a phone, depending on the model), a sleeping baby a few feet away, tinnitus, a library, 2 a.m.: all of these need something below step 1, and Android's own settings simply do not offer it.
 
 ## What Granular Volume does
 
@@ -56,9 +58,9 @@ Granular Volume adds real attenuation **below** the hardware's step 1, not more 
 It's a small floating dial that sits over any app:
 
 - **Drag it anywhere** on screen and it stays there across restarts.
-- **Tuck it into a corner** and it turns semi-transparent, staying out of the way without fully disappearing.
+- **Minimize it** to a small tab at the screen edge and the quiet level keeps working. Left alone, the dial fades so it stays out of the way.
 - **Close it with one tap**, or reopen it from a **Quick Settings tile** without leaving the app you're in.
-- **Covers your normal range too.** Above the line marking your device's minimum, the slider sets regular system volume in even 5 dB steps, so it stands in for worn or broken volume buttons.
+- **Covers your normal range too.** Above the line marking your device's minimum, the slider sets regular system volume in even steps, so it stands in for worn or broken volume buttons.
 - **Mutes media without touching alarms.** One tap silences media; your wake-up alarm still rings.
 - **Doesn't take over your physical volume buttons** or replace the system volume panel. The buttons keep working; inside the quiet zone the dial folds their presses into its own finer scale.
 
@@ -66,7 +68,7 @@ No ads. No tracking. No account. No network permission requested at all. The app
 
 ## Features
 
-- **One slider, the whole range**: normal system volume above the device-minimum line in even 5 dB steps, and the quiet zone below it.
+- **One slider, the whole range**: normal system volume above the device-minimum line in even steps, and the quiet zone below it.
 - **Fine grained attenuation** from 0 dB (pass through, i.e. Android's own step 1) down to about -30 dB in steps, applied to the global output mix.
 - **Media mute that spares alarms**: one tap silences media playback and leaves alarm streams untouched.
 - **Floating overlay** that sits above any app, draggable to any position and persisted across restarts.
@@ -79,7 +81,7 @@ No ads. No tracking. No account. No network permission requested at all. The app
 
 - **A sleeping baby or partner nearby**: white noise or a lullaby that needs to be barely audible, not just "quiet."
 - **Sensitive in-ear monitors or bone-conduction headphones**: where even a couple of percent of the device's output is already too much.
-- **Tablet speakers**: tablets frequently ship with an even louder minimum step than phones, since they're built to fill a bigger room.
+- **Tablet speakers**: on some tablets the minimum step is louder than on a phone, depending on the model.
 - **Late-night podcasts or audiobooks**: falling asleep to something without it waking anyone else.
 - **Quiet rooms**: a library, a shared office, meditation, or anywhere that needs genuine calm rather than "quieter than before."
 - **Sound sensitivity and tinnitus**: situations where the standard volume floor is simply above a comfortable threshold.
@@ -106,7 +108,7 @@ Most apps in this space solve the opposite problem, or a different problem that 
 | Direction | Goes **quieter** than the hardware minimum | Usually makes things **louder**, or adds more clicks within the *existing* range |
 | Mechanism | Independent output-gain effect, applied underneath the existing volume steps | Often remaps or subdivides the same step range you already have |
 | Touches volume buttons? | No takeover: buttons and panel keep working; in the quiet zone their presses fold into the dial's finer scale | Sometimes overrides or intercepts them |
-| Setup | One dial, drag it, done | Frequently an equalizer, presets, or an account |
+| Setup | One dial: tap a bar or an arrow, done | Frequently an equalizer, presets, or an account |
 | Cost model | Open source, no ads, no tracking; one payment after a free week | Often ad supported or subscription based |
 
 The distinction matters because "more steps" and "a lower floor" are not the same fix, though they overlap more than is usually admitted. A longer step scale does put its first step lower on Android's attenuation curve: on one Android 16 configuration measured in August 2026, going from 15 steps to 100 was worth about 5 dB. What it cannot do is pass the bottom of that curve, which is fixed regardless of step count, and past roughly 100 steps the extra ones sit at mute rather than adding anything. Only attenuation applied *underneath* that floor actually changes the quietest sound the device can produce.
@@ -116,8 +118,11 @@ The distinction matters because "more steps" and "a lower floor" are not the sam
 In the interest of being straightforward about what this app does and doesn't do:
 
 - It attenuates the **global** output mix, not a specific app's stream in isolation. If two apps are playing audio simultaneously, both are affected together.
-- Very old or unusual OEM audio stacks that don't support `DynamicsProcessing` fall back to `LoudnessEnhancer`, which is a coarser tool not originally designed for this direction of gain. It works, but the primary path is preferred wherever available.
+- Very old or unusual OEM audio stacks that don't support `DynamicsProcessing` fall back to `LoudnessEnhancer`, which is a coarser tool not originally designed for this direction of gain. Whether it accepts negative gain depends on the device: on some it attenuates, on others it does nothing, and the app says so in its status screen.
 - This is attenuation, not noise cancellation or EQ. It makes everything uniformly quieter; it doesn't selectively suppress specific frequencies or filter background noise.
+- Regular cellular calls are out of reach: Android carries cellular voice on an output that runs no audio effects. Calls made inside apps are lowered only on phones that play them through the media output.
+- Keyboard clicks and other system interface sounds are not lowered. Android plays them on a low-latency path that skips effects by design.
+- On a small number of phone and headphone combinations the quiet steps have no effect over Bluetooth, because the phone sends that headset's audio through a separate output on which the effect is not applied. The [help page](https://granularvolume.com/help.html) describes the one confirmed case and what to try.
 - The overlay needs "Display over other apps" permission, which (like any overlay permission on Android) cannot be silently pre-granted by the app itself. It's a manual step during setup, by design, since Android intentionally makes this permission visible and revocable.
 
 ## Screenshots
@@ -127,9 +132,9 @@ In the interest of being straightforward about what this app does and doesn't do
 <th>The problem</th><th>The whole range</th><th>Broken buttons</th>
 </tr>
 <tr>
-<td><img src="store-assets/screenshot_1.png" width="260" alt="When the lowest setting is still too loud"></td>
-<td><img src="store-assets/screenshot_2.png" width="260" alt="One slider, the whole volume range"></td>
-<td><img src="store-assets/screenshot_3.png" width="260" alt="Works when your volume buttons do not"></td>
+<td><img src="docs/img/shot1.png" width="260" alt="When the lowest setting is still too loud"></td>
+<td><img src="docs/img/shot2.png" width="260" alt="One dial, the whole volume range"></td>
+<td><img src="docs/img/shot3.png" width="260" alt="Works when your volume buttons do not"></td>
 </tr>
 </table>
 
@@ -151,7 +156,7 @@ rather than just read about it.
 - **Android 9.0 (API 28) and up**: this is the actual `minSdk` in `android/app/build.gradle.kts`. If you've seen "Android 8+" mentioned elsewhere by mistake, this README and the app's own listing are the source of truth.
 - **Phones and tablets alike.** The attenuation is applied to the global audio session, not to a specific screen size or form factor, so it behaves identically on both.
 - **No root required.**
-- Distributed as two functionally identical build flavors: `play` (Google Play, includes an optional in-app review prompt) and `fdroid` (F-Droid, zero Google Play dependencies; see [Building from source](#building-from-source)).
+- Distributed as two build flavors: `play` (Google Play: a seven-day trial, then a one-time purchase inside the app through Google Play Billing, plus an optional in-app review prompt) and `fdroid` (zero Google Play dependencies; see [Building from source](#building-from-source)).
 
 ## FAQ
 
@@ -174,16 +179,16 @@ That's what lets the floating dial render above whatever app you're currently us
 Android requires a foreground service to keep a real-time audio effect and an on-screen overlay alive reliably while you're using other apps. The notification is Android's own requirement for foreground services, not something this app adds voluntarily.
 
 **Will this work with Bluetooth headphones?**
-Yes. The attenuation is applied to the audio session before it reaches whatever output device is active, Bluetooth included.
+Usually, yes. The attenuation is applied to Android's output mix before it reaches whatever output device is active, Bluetooth included. There is one known exception, listed under Known limitations above: on a small number of phone and headphone combinations the effect is not applied on the headset's output.
 
 **Does it work differently on tablets versus phones?**
-The underlying mechanism is identical. Tablets often have a louder minimum step to begin with (see [Why the minimum step exists](#why-the-minimum-step-exists-and-why-its-still-too-loud) above), so the extra headroom tends to matter even more there.
+The underlying mechanism is identical. On some tablets the minimum step is louder than on a phone (see [Why the minimum step exists](#why-the-minimum-step-exists-and-why-its-still-too-loud) above). It depends on the model, and where it is the case, the extra headroom matters even more.
 
 **Is there a Pro or paid version?**
-There is no separate Pro build. On Google Play the complete app comes with a seven-day trial, and after that a one-time key purchase keeps every feature; nothing renews and there is no subscription. On F-Droid every feature is included at no charge, permanently. Either way the code is open source under GPL-3.0.
+There is no separate Pro build. On Google Play the complete app comes with a seven-day trial, and after that a one-time purchase inside the app keeps every feature; nothing renews and there is no subscription. The code is open source under GPL-3.0.
 
 **Why is there a Play flavor and an F-Droid flavor?**
-F-Droid requires that everything in its build be free and open source, including build dependencies. The `play` flavor includes Google's proprietary in-app review library (only used to occasionally ask for a Play Store rating); the `fdroid` flavor has zero Google Play code. The two differ in one other way that is deliberate rather than technical: the Play build comes with a seven-day trial and then needs a one-time unlock, while **the F-Droid build is free and complete, permanently**, with every step included and nothing to buy. Its `KeyCheck` stub simply answers true. See [`build.gradle.kts`](android/app/build.gradle.kts) for the exact flavor split.
+F-Droid requires that everything in its build be free and open source, including build dependencies. The `play` flavor includes three proprietary Google libraries: Play Billing, for the one-time unlock; the in-app review library, only used to occasionally ask for a Play Store rating; and the in-app update library, used to show that a newer version is waiting on Google Play. All three talk to the Play Store app on the device, and the app itself still has no internet permission; the `fdroid` flavor has zero Google Play code. See [`build.gradle.kts`](android/app/build.gradle.kts) for the exact flavor split.
 
 **Why not just make Android's default minimum volume lower?**
 That's not something a regular app can change. The per-step volume curve is defined by the device manufacturer at the OS/firmware level, not exposed to third-party apps through any public API. Adding attenuation on top, outside the standard volume steps entirely, is the practical mechanism available to an app that isn't the device's own system software. Re-encoding a file to be quieter also works, but only per file and never for streaming.
@@ -205,7 +210,7 @@ The steps are applied as decibel offsets (roughly 5 dB per step down to about -3
 The attenuation is produced by an Android audio effect attached to the global output session, with a graceful fallback chain so it behaves predictably across OEMs:
 
 1. **`DynamicsProcessing`** (API 28+) is the primary engine. It's set up as an output-gain-only stage: no compression, no EQ curve, no limiting. The effect is clean, flat-spectrum attenuation applied uniformly across the signal, rather than anything that reshapes the sound.
-2. **`LoudnessEnhancer`** is the fallback when `DynamicsProcessing` is unavailable at runtime on a given device or OEM audio stack. It's a coarser tool (designed for the opposite use case: boosting quiet audio), but with negative gain it still produces a usable attenuation curve as a fallback.
+2. **`LoudnessEnhancer`** is the fallback when `DynamicsProcessing` is unavailable at runtime on a given device or OEM audio stack. It's a coarser tool (designed for the opposite use case: boosting quiet audio), and whether it accepts negative gain depends on the device, so on some devices the fallback attenuates and on others it does nothing.
 
 A foreground `Service` owns the effect and the overlay for the full lifetime of the session, with the effect created once and released deterministically in `onDestroy()`. There is no dangling audio effect left attached after the service stops. The service is declared `specialUse`, since it maintains a real-time audio effect and a floating control while the user listens to media in *other* apps, rather than playing media itself, which doesn't map cleanly onto any of Android's other foreground service types.
 
@@ -232,12 +237,12 @@ android/                        Android project (Gradle root)
         receiver/                Auto start on boot
         util/                    Permission checks and SharedPreferences wrapper
       res/                       Layouts, drawables, themes, strings
-    src/play/                    Play-only: in-app review prompt (ReviewHelper)
-    src/fdroid/                  F-Droid-only: no-op ReviewHelper stub, zero Play dependencies
+    src/play/                    Play-only: Play Billing, key check, in-app review prompt and update check
+    src/fdroid/                  F-Droid-only: no-op stubs, zero Play dependencies
     build.gradle.kts
   build.gradle.kts
   settings.gradle.kts
-store-assets/                   Store icon, feature graphic, screenshots, privacy policy
+store-assets/                   Store icon, feature graphic, screenshots
 video/assets/                   Promo and card source files
 fdroid-reference/               Reproducible-build verification artifacts for F-Droid
 ```
@@ -259,7 +264,7 @@ cd android
 ./gradlew assembleFdroidRelease
 ```
 
-The `play` and `fdroid` flavors are functionally identical apart from the optional in-app review prompt, which only exists in `play` (see [FAQ](#faq)). Both share the exact same `applicationId`, permission set, and attenuation/overlay behavior.
+The `play` and `fdroid` flavors share the same `applicationId` and the same attenuation and overlay behavior. The `play` build adds the seven-day trial, the one-time unlock through Google Play Billing (and with it the `com.android.vending.BILLING` permission) and the optional in-app review prompt; the `fdroid` build has none of these.
 
 ### Signing
 
@@ -282,7 +287,7 @@ The debug build needs no signing setup and is the recommended loop for local tes
 | `MODIFY_AUDIO_SETTINGS` | Apply the audio attenuation effect. |
 | `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_SPECIAL_USE` | Keep the effect and overlay alive reliably. |
 | `RECEIVE_BOOT_COMPLETED` | Restores the control after a reboot, if it was on before shutdown. A control you stopped yourself stays stopped. |
-| `POST_NOTIFICATIONS` | Show the foreground service notification (Android 13+). |
+| `POST_NOTIFICATIONS` | Show the foreground service notification (Android 13+). In the Google Play version, also at most two one-time notes about the free week: one before it ends and one when it has ended. Both are created on the device; nothing is sent anywhere. |
 
 The overlay permission cannot be granted at runtime by the app. The setup screen guides you to the system toggle.
 
@@ -294,7 +299,7 @@ Issues and pull requests are welcome. A few things that make a report or a PR fa
 
 - **Bug reports:** include the device model, Android version, and app version (from the setup screen). If it's audio-related, mention which app was producing sound and which output device (speaker, wired, Bluetooth) was active.
 - **Pull requests:** keep changes focused: one behavior change per PR is easier to review and easier to revert if something's wrong. Match the surrounding Kotlin style rather than introducing a new one.
-- **Flavor-affecting changes:** if a change touches anything under `android/app/src/play/` or `android/app/src/fdroid/`, please note in the PR description whether it was tested on both flavors, since the two are expected to stay behaviorally identical outside of the review-prompt difference documented above.
+- **Flavor-affecting changes:** if a change touches anything under `android/app/src/play/` or `android/app/src/fdroid/`, please note in the PR description whether it was tested on both flavors, since the two are expected to stay behaviorally identical outside of the purchase, review-prompt and update differences documented above.
 - **New dependencies:** since the `fdroid` flavor exists specifically to stay free-software-only, any new dependency should be added as `implementation` (available to both flavors) only if it's fully open source; anything proprietary needs to go behind `playImplementation`, the same pattern used for the review library.
 
 ## License

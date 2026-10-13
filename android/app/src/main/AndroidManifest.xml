@@ -48,9 +48,10 @@
             android:label="@string/gv_licenses_title" />
 
         <!-- Full-range paywall (1.5.0). Translucent host for the upgrade sheet, launched
-             when a locked gesture is refused. Stays alive (no noHistory) so the buyer
-             returning from Google Play lands back on it, where onResume re-checks
-             entitlement and tells the service the key arrived. singleTop so a second
+             when a locked gesture is refused. No noHistory: Google Play's own purchase
+             window can cover the screen for a moment and must find the sheet on the way
+             back. 1.7.0: both sheets close themselves in onStop instead, except while a
+             purchase is in flight, so a sheet left behind by the Home key cannot resurface. singleTop so a second
              locked tap re-delivers instead of stacking a duplicate sheet. Never launched
              in the F-Droid build, where the full range is free and the gate never fires. -->
         <!-- "Your access" sheet, opened from the dial's info button. Same translucent
@@ -88,8 +89,15 @@
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <!-- 1.6.4: an update kills the running control; bring it back under the boot rules. -->
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+
+        <!-- 1.6.2: the two one-time free-week notices, armed by TrialNotices. Own PendingIntents only. -->
+        <receiver
+            android:name=".receiver.TrialNoticeReceiver"
+            android:exported="false" />
 
         <!-- Quick Settings tile — toggles the overlay on/off from the notification shade -->
         <service

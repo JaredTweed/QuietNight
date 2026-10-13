@@ -40,7 +40,7 @@ PLAY = VARIANT == "play"
 
 # The price line under the wordmark on every screenshot, and the badge row on the
 # feature graphic.
-FOOTER_CLAIM = "7 days free   .   No ads   .   Open source" if PLAY else                "Free   .   No ads   .   Open source"
+FOOTER_CLAIM = "No ads   .   No account   .   Open source" if PLAY else                "Free   .   No ads   .   Open source"
 BADGES = ["7 days free", "No ads", "Open source"] if PLAY else ["Free", "No ads", "Open source"]
 # Screenshot 8: its headline and its first bullet are both price claims.
 TRUST_HEAD = ["Private, open,", "no subscriptions"] if PLAY else ["Free, private, open"]
@@ -237,7 +237,23 @@ def _speaker_mute(d, cx, cy, r, col):
     d.line([(cx + int(r * 0.42), cy + int(r * 0.42)), (cx + int(r * 1.02), cy - int(r * 0.42))],
            fill=col, width=w)
 
+REAL_DIAL = {}
+def _real(name):
+    if name not in REAL_DIAL:
+        REAL_DIAL[name] = Image.open(os.path.join(HERE_ASSETS, "_cap", "dial_%s.png" % name))
+    return REAL_DIAL[name]
+HERE_ASSETS = os.path.dirname(os.path.abspath(__file__))
+
 def draw_pill(d, px, py, m, upper_pos=None, quiet_step=None, label=None, muted=False):
+    """1.7.1: the drawn model supplies the geometry; the real capture of the shipped dial is pasted over it."""
+    g = _draw_pill_old(d, px, py, m, upper_pos=upper_pos, quiet_step=quiet_step, label=label, muted=muted)
+    name = "q2mute" if muted else ("up" if upper_pos is not None else {2: "q2", 3: "q3"}.get(quiet_step))
+    if name:
+        real = _real(name).resize((m['pill_w'], m['pill_h']), Image.LANCZOS)
+        d._image.paste(real, (px, py), real)
+    return g
+
+def _draw_pill_old(d, px, py, m, upper_pos=None, quiet_step=None, label=None, muted=False):
     """Draws the full-range dial.
 
     upper_pos   index into the upper ladder, 0 = loudest. Only one zone is active at a time.
@@ -251,7 +267,7 @@ def draw_pill(d, px, py, m, upper_pos=None, quiet_step=None, label=None, muted=F
     rad = int(pw * 0.40)
     in_quiet = quiet_step is not None
 
-    ge = s(26)
+    ge = s(4)
     d.rounded_rectangle([px - ge, py - ge, px + pw + ge, py + ph + ge],
                         radius=rad + ge, fill=(108, 99, 255, 30))
     d.rounded_rectangle([px, py, px + pw, py + ph], radius=rad, fill=(26, 26, 46, 235))
@@ -479,7 +495,7 @@ def header(d, lines, sub):
     d.text((W // 2, suby), sub, font=reg(34), fill=SOFT, anchor="mm")
 
 def footer(d):
-    d.text((W // 2, H - s(82)), "Granular Volume", font=semi(32), fill=(244, 246, 251, 220),
+    d.text((W // 2, H - s(82)), "Volume Control: Quiet Dial", font=semi(32), fill=(244, 246, 251, 220),
            anchor="mm")
     d.text((W // 2, H - s(44)), FOOTER_CLAIM, font=reg(26),
            fill=(199, 203, 236, 150), anchor="mm")
@@ -541,7 +557,7 @@ def c_steps(d, sx, sy, sw, sh):
     d.text((rx + s(10), dy), "device minimum", font=semi(17),
            fill=(255, 152, 0, 240), anchor="lm")
 
-    cap = "Every step is 5 dB, top to bottom"
+    cap = "Tap a bar to set that level"
     f = fit_font(d, cap, reg, 23, sw - int(sw * 0.14))
     d.text((sx + sw // 2, sy + sh - int(sh * 0.10)), cap, font=f,
            fill=(199, 203, 236, 215), anchor="mm")
@@ -594,6 +610,13 @@ def c_drag(d, sx, sy, sw, sh):
     d.polygon([(e_cx, e_cy + s(4)), (e_cx - s(9), e_cy - s(12)), (e_cx + s(9), e_cy - s(12))],
               fill=(108, 99, 255, 210))
     draw_pill(d, px, py, m, quiet_step=2)
+    # the minimized tab, docked to the left edge of the screen, as the shipped app draws it
+    tab = _real("tab")
+    tw = int(m['pill_w'] * 0.62); th = int(tab.height * tw / tab.width)
+    tab_im = tab.resize((tw, th), Image.LANCZOS)
+    ty = sy + int(sh * 0.79)
+    d._image.paste(tab_im, (sx, ty), tab_im)
+    d.text((sx + tw + s(14), ty + th // 2), "minimized", font=reg(20), fill=(176, 182, 214, 230), anchor="lm")
 
 def c_noninvasive(d, sx, sy, sw, sh):
     dim_app(d, sx, sy, sw, sh)
@@ -712,7 +735,7 @@ def c_qstile(d, sx, sy, sw, sh):
     d.ellipse([sc - s(4), by + s(8), sc + s(4), by + s(22)], fill=(70, 76, 104))
     # tile grid (2 columns of Android-12-style pill tiles)
     tiles = [
-        ("gv",   "Granular Volume", "On",  True),
+        ("gv",   "Quiet Dial", "On",  True),
         ("wifi", "Wi-Fi",          "Home", False),
         ("moon", "Do Not Disturb", "Off", False),
         ("bolt", "Flashlight",     "Off", False),
@@ -837,7 +860,7 @@ def c_buttons(d, sx, sy, sw, sh):
     # leader from the bezel key to the badge
     d.line([(kx + kw + s(2), ccy), (ccx - r - s(3), ccy)], fill=(255, 107, 107, 130), width=s(2))
 
-    cap = "the slider takes over"
+    cap = "the dial takes over"
     f = fit_font(d, cap, reg, 22, sw - int(sw * 0.16))
     d.text((sx + sw // 2, sy + sh - int(sh * 0.055)), cap, font=f,
            fill=(199, 203, 236, 215), anchor="mm")
@@ -871,9 +894,9 @@ print("Generating Granular Volume marketing assets v5 (full-range dial)...")
 # c_noninvasive is kept in the file for reference but is deliberately not built.
 make_feature()
 build(1, ["When the lowest setting", "is still too loud"],
-      "Granular Volume picks up where Android stops", c_hook)
-build(2, ["One slider, the", "whole volume range"],
-      "Above the line is your phone. Below it is ours.", c_steps, accent=CYAN)
+      "Quiet Dial picks up where Android stops", c_hook)
+build(2, ["One dial, the", "whole volume range"],
+      "Above the line is your phone. Below it, six quieter steps.", c_steps, accent=CYAN)
 build(3, ["Works when your", "buttons do not"],
       "Set the volume on screen, in even steps", c_buttons, accent=CYAN)
 build(4, ["Made for quiet moments"],
@@ -881,9 +904,9 @@ build(4, ["Made for quiet moments"],
 build(5, ["Mutes media,", "never your alarms"],
       "One tap to silence. One tap to bring it back.", c_mute)
 build(6, ["Always within reach"],
-      "Drag it anywhere. Close it with one tap.", c_drag)
+      "Drag it anywhere. Minimize it to the edge and the level stays on.", c_drag)
 build(7, ["One tap from", "Quick Settings"],
-      "Turn it on or off without opening the app", c_qstile)
+      "After the first setup, the Quiet Dial tile turns it on and off", c_qstile)
 build(8, TRUST_HEAD,
       "No ads. No tracking. GPL-3.0.", c_trust)
 print("Done. Assets saved to:", OUT)

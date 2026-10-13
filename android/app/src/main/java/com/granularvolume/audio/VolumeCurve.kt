@@ -100,7 +100,7 @@ class VolumeCurve private constructor(
          * @return the curve, or null if the device returns implausible values — callers must
          *         treat null as "no ladder, use raw hardware indices".
          */
-        fun read(am: AudioManager, streamType: Int, floorIndex: Int): VolumeCurve? {
+        fun read(am: AudioManager, streamType: Int, floorIndex: Int = 1): VolumeCurve? {
             val deviceType = currentOutputDeviceType(am)
             val max = am.getStreamMaxVolume(streamType)
             val min = am.getStreamMinVolume(streamType)

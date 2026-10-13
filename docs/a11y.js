@@ -13,7 +13,11 @@
     es: { open: 'Opciones de accesibilidad', title: 'Accesibilidad', size: 'Tamaño del texto', smaller: 'Texto más pequeño', larger: 'Texto más grande',
           contrast: 'Alto contraste', underline: 'Subrayar enlaces', font: 'Fuente legible', reset: 'Restablecer', statement: 'Declaración de accesibilidad', close: 'Cerrar' },
     fr: { open: "Options d'accessibilité", title: 'Accessibilité', size: 'Taille du texte', smaller: 'Texte plus petit', larger: 'Texte plus grand',
-          contrast: 'Contraste élevé', underline: 'Souligner les liens', font: 'Police lisible', reset: 'Réinitialiser', statement: "Déclaration d'accessibilité", close: 'Fermer' }
+          contrast: 'Contraste élevé', underline: 'Souligner les liens', font: 'Police lisible', reset: 'Réinitialiser', statement: "Déclaration d'accessibilité", close: 'Fermer' },
+    it: { open: 'Opzioni di accessibilità', title: 'Accessibilità', size: 'Dimensione del testo', smaller: 'Testo più piccolo', larger: 'Testo più grande',
+          contrast: 'Contrasto elevato', underline: 'Sottolinea i link', font: 'Carattere leggibile', reset: 'Ripristina', statement: 'Dichiarazione di accessibilità', close: 'Chiudi' },
+    pt: { open: 'Opções de acessibilidade', title: 'Acessibilidade', size: 'Tamanho do texto', smaller: 'Texto menor', larger: 'Texto maior',
+          contrast: 'Alto contraste', underline: 'Sublinhar links', font: 'Fonte legível', reset: 'Redefinir', statement: 'Declaração de acessibilidade', close: 'Fechar' }
   };
   var SIZES = [100, 115, 130, 150];
   var KEY = 'gv-a11y';

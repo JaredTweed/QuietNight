@@ -4,6 +4,7 @@ import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Canvas
@@ -36,6 +37,8 @@ import com.granularvolume.BuildConfig
 import com.granularvolume.R
 import com.granularvolume.audio.AudioController
 import com.granularvolume.audio.FullRangeCoordinator
+import com.granularvolume.audio.FullRangeCoordinator.LockDisplay
+import com.granularvolume.util.AccessState
 import com.granularvolume.util.Prefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -81,6 +84,15 @@ class OverlayManager(
     var onEngaged: (() -> Unit)? = null
 
     companion object {
+        /**
+         * The version of the tour's CONTENT, not of the app (1.6.4). The tour used to be gated on
+         * the app's versionCode, so every update replayed it; three releases in a day showed it
+         * three times. 34 is the versionCode that introduced the tour, so everyone who has seen
+         * it at any version already satisfies the gate and this change itself replays nothing.
+         * Raise it only when the tour says something a returning user needs to be shown.
+         */
+        const val TOUR_CONTENT_VERSION = 34
+
         // Step index 0 = quietest (−30 dB), index 6 = no attenuation (0 dB, at the floor).
         val STEP_DB = floatArrayOf(-30f, -25f, -20f, -15f, -10f, -5f, 0f)
 
@@ -100,6 +112,12 @@ class OverlayManager(
         private const val IDLE_FADE_MS = 380L
         private const val WAKE_MS = 120L
         private const val IDLE_ALPHA = 0.4f
+
+        // 1.7.0, "a newer version is ready" on the info button.
+        private const val UPDATE_DOT_DP = 10
+        private const val UPDATE_TINTS_INFO = true
+        private const val UPDATE_GREEN = 0xFF34D399.toInt()
+        private const val INFO_TINT = 0x8CFFFFFF.toInt()   // the layout's own tint, restored when the signal clears
         private const val ACTIVE_ALPHA = 1.0f
 
         private const val ALPHA_CURRENT  = 1.00f
@@ -158,6 +176,15 @@ class OverlayManager(
         private const val MORPH_SCALE = 0.35f
         private const val TAB_IDLE_ALPHA = 0.6f
 
+        /**
+         * 1.7.0: on a screen shorter than the dial (a phone held sideways) the dial is drawn
+         * smaller so all of it fits, down to this fraction and no further. Below it the keys
+         * would be too small to hit; the dial then simply reaches the screen edge as before.
+         */
+        private const val MIN_DIAL_SCALE = 0.72f
+        /** Air kept between the fitted dial and the bars above and below it. */
+        private const val FIT_MARGIN_DP = 6
+
         // 1.5.1 feature tour
         private const val TOUR_STEPS = 4
         private const val TOUR_START_DELAY_MS = 700L
@@ -189,6 +216,16 @@ class OverlayManager(
     private val muteHitSlop = (MUTE_SLOP_DP * density).toInt()
     private var overlayView: View? = null
     private var flowJob: Job? = null
+
+    /**
+     * Density the dial on screen was inflated with. Equal to [density] except on a screen
+     * shorter than the dial, where the whole dial is inflated a little smaller (1.7.0).
+     */
+    private var dialDensity = density
+
+    /** 1.7.0: "a newer version is ready", shown as a small dot on the info button. */
+    private var updateDot = false
+    private val updateDotDrawable = UpdateDotDrawable(density)
 
     // 1.5.1 Quiet Blade: the collapsed form is a second, smaller window. At most one of
     // overlayView / bladeRoot exists at a time; the coordinator flows keep feeding whichever
@@ -268,18 +305,28 @@ class OverlayManager(
     }
 
     private fun showDial(entranceFromRight: Boolean = false, animateEntrance: Boolean = false) {
-        val themedCtx = ContextThemeWrapper(context, R.style.Theme_GranularVolume)
-        val view = LayoutInflater.from(themedCtx).inflate(R.layout.overlay_slider, null)
-        overlayView = view
-        // A fresh view has an empty upper container: the old bars belong to the view that was
-        // just discarded, so the cache is dropped before setupView builds them again.
-        upperBars.clear()
-        setupView(view)
+        val natural = inflateDial(1f)
+        // 1.7.0: a phone held sideways is shorter than the dial. Its bottom (the level readout
+        // and mute) used to hang off the screen with no way to reach it. Measure the dial as
+        // built; when it cannot fit between the bars, build it again a little smaller.
+        val unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        natural.measure(unspecified, unspecified)
+        val room = roomForDial()
+        val view = if (natural.measuredHeight > room && room > 0) {
+            val scale = (room.toFloat() / natural.measuredHeight).coerceIn(MIN_DIAL_SCALE, 1f)
+            android.util.Log.d("GranularVolume", "dial fitted: natural=${natural.measuredHeight}px room=${room}px scale=$scale")
+            inflateDial(scale)
+        } else natural
         // Home position: the last place the user left the dial. Not touched while collapsed,
         // which is exactly why the tab can bring it back to the same spot.
         layoutParams.x = Prefs.getOverlayX(context, DEFAULT_X)
         layoutParams.y = Prefs.getOverlayY(context, DEFAULT_Y)
+        // A position chosen with the screen the other way up was never chosen for THIS shape:
+        // bring the whole dial on screen. One chosen in this orientation is the user's own
+        // placement, parked low or not, and is kept as it always was.
+        val fitFully = Prefs.wasOverlaySavedInLandscape(context) != isLandscape()
         wm.addView(view, layoutParams)
+        applyUpdateDot(view)
 
         // Entrance from the tab: the dial springs out of the wall it was folded into. Set
         // before the first frame so there is no flash of the full dial.
@@ -291,7 +338,7 @@ class OverlayManager(
         }
 
         view.post {
-            if (clampToBounds(view)) applyLayout()
+            if (clampToBounds(view, fitFully)) applyLayout()
             if (animateIn) {
                 view.pivotX = if (entranceFromRight) view.width.toFloat() else 0f
                 view.pivotY = view.height / 2f
@@ -310,9 +357,93 @@ class OverlayManager(
         }
     }
 
+    /** Inflates and wires a dial at [scale] of its natural size, and makes it the current one. */
+    private fun inflateDial(scale: Float): View {
+        val base = if (scale >= 1f) context else {
+            val cfg = Configuration(context.resources.configuration)
+            cfg.densityDpi = (cfg.densityDpi * scale).toInt()
+            context.createConfigurationContext(cfg)
+        }
+        dialDensity = base.resources.displayMetrics.density
+        val themedCtx = ContextThemeWrapper(base, R.style.Theme_GranularVolume)
+        val view = LayoutInflater.from(themedCtx).inflate(R.layout.overlay_slider, null)
+        overlayView = view
+        // A fresh view has an empty upper container: the old bars belong to the view that was
+        // just discarded, so the cache is dropped before setupView builds them again.
+        upperBars.clear()
+        setupView(view)
+        return view
+    }
+
+    /** Height between the status bar and the navigation bar, less a little air. */
+    private fun roomForDial(): Int =
+        fullDisplayBounds().height() - statusBarHeight() - navBarHeight() - (2 * FIT_MARGIN_DP * density).toInt()
+
+    private fun isLandscape(): Boolean {
+        val b = fullDisplayBounds()
+        return b.width() > b.height()
+    }
+
     private fun renderCurrent() {
         overlayView?.let { render(it) }
         if (bladeView != null) renderBlade()
+    }
+
+    /** 1.7.0: repaint from the current truth (the free week ended, a purchase arrived). */
+    fun refresh() = renderCurrent()
+
+    /**
+     * 1.7.0: the screen changed shape. The dial and the tab were placed for the old shape and
+     * until now stayed at those pixels: after a rotation the dial could sit half off the new
+     * screen and the tab could float in the middle of it. Both are rebuilt for the new bounds.
+     * The sound is not touched: this swaps views, exactly like collapse and expand do.
+     */
+    fun onConfigurationChanged() {
+        if (!attached || morphing) return   // a morph in flight lands with the new bounds by itself
+        // A tour in progress is put back on the same card once the dial has been rebuilt; its
+        // callout and ring were measured against the old dial and cannot simply stay.
+        val tourAt = if (tourView != null) tourStep else 0
+        endTour(animated = false)
+        snapAnimator?.cancel()
+        overlayView?.let { old ->
+            old.removeCallbacks(idleFadeRunnable)
+            old.animate().cancel()
+            runCatching { wm.removeView(old) }
+            overlayView = null
+            runCatching { showDial() }
+        }
+        if (bladeRoot != null) {
+            removeBladeWindow()
+            runCatching { showTab(animateIn = false) }
+        }
+        if (tourAt > 0) overlayView?.let { v -> v.post { if (overlayView === v) startTour(tourAt) } }
+    }
+
+    /** 1.7.0: lights or clears the "newer version is ready" dot on the info button. */
+    fun setUpdateDot(show: Boolean) {
+        if (updateDot == show) return
+        updateDot = show
+        overlayView?.let { applyUpdateDot(it) }
+    }
+
+    private fun applyUpdateDot(view: View) {
+        val info = view.findViewById<View>(R.id.gv_btn_info) ?: return
+        info.overlay.remove(updateDotDrawable)
+        info.contentDescription = context.getString(R.string.gv_info) +
+            if (updateDot) " " + context.getString(R.string.gv_update_ready) else ""
+        // The glyph carries the signal too. Measured on the owner's phone (2026-10-04): a 7dp dot
+        // on a dial resting at 40% opacity was not seen at all, with the update row on screen.
+        (info as? ImageView)?.imageTintList = android.content.res.ColorStateList.valueOf(
+            if (updateDot && UPDATE_TINTS_INFO) UPDATE_GREEN else INFO_TINT
+        )
+        if (!updateDot) return
+        info.post {
+            if (overlayView !== view || !updateDot) return@post
+            val d = (UPDATE_DOT_DP * dialDensity).toInt().coerceAtLeast(8)
+            updateDotDrawable.setBounds(info.width - d, 0, info.width, d)
+            info.overlay.add(updateDotDrawable)
+            android.util.Log.d("GranularVolume", "update dot shown on the info button")
+        }
     }
 
     fun hide() {
@@ -594,7 +725,8 @@ class OverlayManager(
             fill = (total - index).toFloat() / total,
             tick = s.upperCount.toFloat() / total,
             muted = s.muted,
-            locked = coordinator.lockedDisplayProvider()
+            // HELD keeps its fill: the level it shows is the level that is applied.
+            locked = coordinator.lockDisplayProvider() == LockDisplay.LOCKED
         )
     }
 
@@ -651,14 +783,14 @@ class OverlayManager(
     ).apply { gravity = Gravity.TOP or Gravity.START }
 
     /**
-     * Once per install or update, on a start the PERSON made: the service calls this only
+     * Once per install (per [TOUR_CONTENT_VERSION]), on a start the PERSON made: the service calls this only
      * off a real start intent, never off the boot receiver (the anti-adware rule). Also never
      * when the range is locked, never during a cellular call, and only over the open dial.
      */
     fun maybeStartTour() {
-        if (Prefs.getTourShownVersion(context) >= BuildConfig.VERSION_CODE) return
+        if (Prefs.getTourShownVersion(context) >= TOUR_CONTENT_VERSION) return
         val dial = overlayView ?: return
-        if (coordinator.lockedDisplayProvider() || coordinator.uiState().quietUnavailable) return
+        if (coordinator.lockDisplayProvider() != LockDisplay.OPEN || coordinator.uiState().quietUnavailable) return
         dial.postDelayed({
             if (overlayView === dial && tourView == null && !morphing) startTour()
         }, TOUR_START_DELAY_MS)
@@ -674,10 +806,10 @@ class OverlayManager(
         startTour()
     }
 
-    private fun startTour() {
+    private fun startTour(firstStep: Int = 1) {
         val dial = overlayView ?: return
         if (tourView != null) return
-        Prefs.setTourShownVersion(context, BuildConfig.VERSION_CODE)
+        Prefs.setTourShownVersion(context, TOUR_CONTENT_VERSION)
         // The tour replaces the old one-line hint next to the line.
         Prefs.setLineTooltipShown(context)
         dial.findViewById<TextView>(R.id.gv_line_tooltip)?.visibility = View.GONE
@@ -703,14 +835,15 @@ class OverlayManager(
         dial.alpha = ACTIVE_ALPHA
         dial.overlay.add(tourRing)
         tv.animate().alpha(1f).setDuration(220L).start()
-        tv.post { showTourStep(1) }
+        tv.post { showTourStep(firstStep.coerceIn(1, TOUR_STEPS)) }
     }
 
     private fun tourTargets(dial: View, step: Int): List<View> = when (step) {
         1 -> listOf(dial.findViewById(R.id.gv_upper_container))
         2 -> listOf(dial.findViewById(R.id.gv_divider), dial.findViewById(R.id.gv_steps_container))
         3 -> listOf(dial.findViewById(R.id.gv_btn_mute))
-        else -> listOf(dial.findViewById(R.id.gv_btn_minimize))
+        // 1.7.0: the last card names all three small buttons, so the ring holds all three.
+        else -> listOf(dial.findViewById(R.id.gv_btn_info), dial.findViewById(R.id.gv_meta_row))
     }
 
     private fun showTourStep(step: Int) {
@@ -727,7 +860,10 @@ class OverlayManager(
         }
         val t = target ?: dialRect
         val titles = intArrayOf(R.string.gv_tour_1_title, R.string.gv_tour_2_title, R.string.gv_tour_3_title, R.string.gv_tour_4_title)
-        val bodies = intArrayOf(R.string.gv_tour_1_body, R.string.gv_tour_2_body, R.string.gv_tour_3_body, R.string.gv_tour_4_body)
+        // The i shows a price only to someone who can still be asked for one.
+        val state = AccessState.of(context)
+        val lastBody = if (state.onTrial || state.weekOver) R.string.gv_tour_4_body_price else R.string.gv_tour_4_body
+        val bodies = intArrayOf(R.string.gv_tour_1_body, R.string.gv_tour_2_body, R.string.gv_tour_3_body, lastBody)
         val cardOnRight = dialRect.centerX() < fullDisplayBounds().width() / 2
         tv.showStep(
             step, TOUR_STEPS,
@@ -827,12 +963,23 @@ class OverlayManager(
         container.removeAllViews()
         upperBars.clear()
 
-        val gapPx = (UPPER_BAR_GAP_DP * density).toInt()
-        val totalPx = (UPPER_CONTAINER_DP * density).toInt()
-        val barPx = max(
-            (UPPER_BAR_MIN_DP * density).toInt(),
-            (totalPx - gapPx * (count - 1)) / count
-        )
+        // dialDensity, not density: on a fitted (smaller) dial the container is smaller too.
+        var gapPx = (UPPER_BAR_GAP_DP * dialDensity).toInt()
+        val totalPx = (UPPER_CONTAINER_DP * dialDensity).toInt()
+        var barPx = (totalPx - gapPx * (count - 1)) / count
+        // 1.7.1: the stack must never be taller than its container. With the bar held at its
+        // usual minimum, more than about 17 positions did not fit (a wireless route on a device
+        // with 25 volume steps has 25): the bars past the container's edge were not drawn, yet
+        // they sat over the orange line and the first quiet bars and took the taps meant for
+        // those. So past that count the gap thins first, then the bar.
+        if (barPx < (UPPER_BAR_MIN_DP * dialDensity).toInt()) {
+            gapPx = max(1, dialDensity.toInt())
+            barPx = max(1, (totalPx - gapPx * (count - 1)) / count)
+            if (barPx * count + gapPx * (count - 1) > totalPx) {
+                gapPx = 0
+                barPx = max(1, totalPx / count)
+            }
+        }
 
         // One name for the whole rung stack. Each bar previously carried the SAME description,
         // so a screen reader read "Volume level" once per rung before reaching anything useful.
@@ -1000,8 +1147,8 @@ class OverlayManager(
         if (hit(btnMute, rawX, rawY, muteHitSlop)) {
             pressPulse(btnMute); confirmHaptic(root); coordinator.toggleMute(); onEngaged?.invoke(); return
         }
-        for (i in upperBars.indices) {
-            if (hit(upperBars[i], rawX, rawY)) { tick(root); coordinator.applyUpper(i); onEngaged?.invoke(); return }
+        upperBarAt(root, rawX, rawY)?.let { i ->
+            tick(root); coordinator.applyUpper(i); onEngaged?.invoke(); return
         }
         for (i in quietBars.indices) {
             if (hit(quietBars[i], rawX, rawY)) { tick(root); selectQuiet(i); onEngaged?.invoke(); return }
@@ -1059,6 +1206,26 @@ class OverlayManager(
         }
     }
 
+    /**
+     * The upper bar a tap inside the upper zone belongs to: the nearest one, so a tap that
+     * lands in the gap between two thin bars still chooses a level. Null outside the zone,
+     * which is what keeps a bar from ever answering for a place it is not drawn in (1.7.1).
+     */
+    private fun upperBarAt(root: View, rawX: Float, rawY: Float): Int? {
+        val container = root.findViewById<View>(R.id.gv_upper_container) ?: return null
+        if (upperBars.isEmpty() || !hit(container, rawX, rawY)) return null
+        val loc = IntArray(2)
+        var best = -1
+        var bestDistance = Float.MAX_VALUE
+        for (i in upperBars.indices) {
+            val bar = upperBars[i]
+            bar.getLocationOnScreen(loc)
+            val distance = abs(rawY - (loc[1] + bar.height / 2f))
+            if (distance < bestDistance) { bestDistance = distance; best = i }
+        }
+        return best.takeIf { it >= 0 }
+    }
+
     private fun hit(v: View, rawX: Float, rawY: Float, slop: Int = 0): Boolean {
         if (v.visibility != View.VISIBLE) return false
         val loc = IntArray(2)
@@ -1096,12 +1263,21 @@ class OverlayManager(
         // purpose: it still shows where the user left off, which is what the keep-your-place
         // rule promises. Added 2026-09-09; before it a locked dial was pixel identical to a
         // working one.
-        val locked = coordinator.lockedDisplayProvider()
+        //
+        // 1.7.0: a third picture. HELD is a session whose free week ended while it was on: the
+        // level that is applied is real and stays, so its ONE bar is drawn lit, and every other
+        // bar is drawn unavailable, because choosing any of them asks for the unlock. Until
+        // 1.7.0 that dial looked fully live, and the first tap was refused with no warning.
+        val lock = coordinator.lockDisplayProvider()
+        val locked = lock == LockDisplay.LOCKED
+        val held = lock == LockDisplay.HELD
 
         // Upper bars: list index 0 = loudest. Fill from the bottom up to the current level.
         for (i in upperBars.indices) {
             val alpha = when {
                 locked                 -> ALPHA_UNAVAILABLE
+                held                   ->
+                    if (!s.zoneQuiet && !s.muted && i == s.upperPos) ALPHA_CURRENT else ALPHA_UNAVAILABLE
                 s.zoneQuiet || s.muted -> ALPHA_INACTIVE
                 i == s.upperPos        -> ALPHA_CURRENT
                 i > s.upperPos         -> ALPHA_ACTIVE
@@ -1119,6 +1295,8 @@ class OverlayManager(
                 // invited to tap something that can only disappoint.
                 locked                  -> ALPHA_UNAVAILABLE
                 s.quietUnavailable      -> ALPHA_UNAVAILABLE
+                held                    ->
+                    if (s.zoneQuiet && !s.muted && i == currentStep) ALPHA_CURRENT else ALPHA_UNAVAILABLE
                 !s.zoneQuiet || s.muted -> ALPHA_INACTIVE
                 i == currentStep        -> ALPHA_CURRENT
                 i < currentStep         -> ALPHA_ACTIVE
@@ -1142,10 +1320,17 @@ class OverlayManager(
         // value ("Volume minus 15 dB, below the device minimum"), not the terse visible one.
         // Guarded on the previous value so a re-render with the same level stays silent, and so a
         // drag does not queue one announcement per frame.
-        val spoken = when {
+        val level = when {
             s.muted     -> context.getString(R.string.gv_label_desc_muted)
             s.zoneQuiet -> context.getString(R.string.gv_label_desc_quiet, formatDb(STEP_DB[currentStep]))
             else        -> context.getString(R.string.gv_label_desc_normal, s.percent)
+        }
+        // 1.7.0: a screen reader is told what a sighted user sees in the dimmed bars. Without
+        // it the dial read "Volume 40 percent" and every tap opened a purchase sheet unannounced.
+        val spoken = when (lock) {
+            LockDisplay.LOCKED -> context.getString(R.string.gv_label_desc_locked)
+            LockDisplay.HELD   -> context.getString(R.string.gv_label_desc_held, level)
+            LockDisplay.OPEN   -> level
         }
         label.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         if (spoken != lastSpokenLevel) {
@@ -1350,7 +1535,12 @@ class OverlayManager(
     // Bounds — the "hide it, but never onto the Home keys" behaviour (unchanged)
     // ────────────────────────────────────────────────────────────────
 
-    private fun clampToBounds(view: View): Boolean {
+    /**
+     * [fitFully] (1.7.0) also brings the dial's bottom above the navigation bar when the dial
+     * can fit at all. Used when the position was chosen for another screen shape; a drag never
+     * uses it, so the dial can still be parked low on purpose.
+     */
+    private fun clampToBounds(view: View, fitFully: Boolean = false): Boolean {
         val w = view.width
         val h = view.height
         if (w == 0 || h == 0) return false
@@ -1370,8 +1560,11 @@ class OverlayManager(
         lastMinX = minX
         lastMaxX = maxX
 
+        val margin = (FIT_MARGIN_DP * density).toInt()
+        val fitMaxY = navTop - h - margin
         val newX = layoutParams.x.coerceIn(minX, maxX)
-        val newY = layoutParams.y.coerceIn(minY, maxY)
+        val newY = if (fitFully && fitMaxY >= minY) layoutParams.y.coerceIn(minY, fitMaxY)
+                   else layoutParams.y.coerceIn(minY, maxY)
         val changed = newX != layoutParams.x || newY != layoutParams.y
         layoutParams.x = newX
         layoutParams.y = newY
@@ -1413,7 +1606,7 @@ class OverlayManager(
     }
 
     private fun savePosition() {
-        Prefs.setOverlayPosition(context, layoutParams.x, layoutParams.y)
+        Prefs.setOverlayPosition(context, layoutParams.x, layoutParams.y, isLandscape())
     }
 
     private fun wake(root: View) {
@@ -1426,6 +1619,26 @@ class OverlayManager(
         if (tourView != null) return
         root.postDelayed(idleFadeRunnable, IDLE_FADE_DELAY_MS)
     }
+}
+
+/**
+ * 1.7.0: the "a newer version is ready" dot on the info button, drawn through the button's
+ * ViewOverlay so the dial's layout, size and hit regions are exactly what they were.
+ */
+private class UpdateDotDrawable(density: Float) : Drawable() {
+    private val rim = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF1A1A2E.toInt() }
+    private val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF34D399.toInt() }
+    private val rimPx = 1f * density
+    override fun draw(canvas: Canvas) {
+        if (bounds.isEmpty) return
+        val r = bounds.width() / 2f
+        canvas.drawCircle(bounds.exactCenterX(), bounds.exactCenterY(), r, rim)
+        canvas.drawCircle(bounds.exactCenterX(), bounds.exactCenterY(), r - rimPx, dot)
+    }
+    override fun setAlpha(alpha: Int) {}
+    override fun setColorFilter(colorFilter: ColorFilter?) {}
+    @Deprecated("Deprecated in Java")
+    override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
 }
 
 /**

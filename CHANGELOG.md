@@ -2,6 +2,175 @@
 
 All notable changes to Granular Volume are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.7.2 (versionCode 52)
+
+The first setup step only. Nothing about the dial, the sound, the free week, the unlock or the price changes.
+
+### Changed
+- Android 11 and later: the permission to display over other apps is granted in a list of every app, which
+  Android opens in place of this app's own switch. The app now shows, before that list opens, the icon, the
+  name and the switch to look for, with three numbered steps in large type.
+- When the switch is turned on, the app comes back to the front by itself and carries on. Pressing back,
+  twice on most devices, is no longer a step to work out. The app watches only its own permission, only
+  while the user is on that errand, and for five minutes at most.
+- Coming back with the switch still off used to show a two-second message. A card now stays on the screen:
+  what to look for, a button for a second try, and a link to the help page.
+- Android 9 and 10 open the app's own switch directly; there the guide is skipped and the return is the same.
+- The guide and the card are in English, German, Spanish, French, Indonesian, Polish and Portuguese (Brazil).
+
+## 1.7.1 (versionCode 51)
+
+Fixes only. Nothing about the free week, the unlock or the price changes.
+
+### Fixed
+- After the control was stopped and started again (also after a restart of the device or an update), a level
+  chosen on a bar above the line could come back shown as "-5 dB" below the line. The next press on volume up
+  then dropped the sound to the device's lowest step. The dial now comes back in the place it was left.
+- On a wireless output of a device with more than about 17 volume steps, the bars above the line did not fit
+  their space, and a tap on the first quiet bars could land on a level above the line instead. The bars now
+  always fit, every tap lands where it is drawn, and a tap between two thin bars picks the nearest one.
+- A press on a volume button ends a mute made on the dial. The dial no longer reads MUTE over sound that is
+  playing, and the next tap no longer jumps back to the level from before the mute.
+- Stopping the control within a moment of a call starting or ending can no longer leave the sound lowered
+  with no dial on screen.
+- Google Play version: at every start the app asks Google Play two things, whether the unlock is owned and what
+  it costs. On a slow device one of the two answers could be lost, so a purchase was not re-checked at that
+  start or the button showed no price until a sheet was opened. Both now wait for one connection.
+- Google Play version: "Try again" after a restore that could not reach Google Play repeats the restore. It
+  used to open the purchase.
+- Google Play version: the access sheet and the unlock sheet stay open while you read the Terms, the Privacy
+  Policy, Help or the licences opened from them.
+- Google Play version: turning the screen while the days-left card is showing keeps the card.
+
+## 1.7.0 (versionCode 49)
+
+One idea behind the release: every surface tells the same true story about where the user stands.
+
+### Changed
+- The app icon and the control's notification are doors now. While the control is running, tapping either
+  one opens "Your access" (status, price, restore, help) instead of starting a control that is already on.
+- Google Play version, after the free week: a control that was on when the week ended keeps its level
+  exactly as it is until it is stopped or the device restarts. The first tap on the dial that would change
+  the level asks for the unlock. The device's own volume buttons keep working, and volume up still makes
+  the sound louder. Nothing gets louder or quieter by itself.
+- Google Play version: our own update no longer ends that held level. After an update the control comes
+  back as it was. A restart of the device and a control you stopped behave as before.
+- Google Play version: the first screen states the whole arrangement in one sentence, with the real number
+  of days left, and the button in "Your access" reads "Keep it for good" during the free week.
+- Google Play version: a first open that finds the free week already over gets 24 hours of everything,
+  once, and the first screen says so.
+- The setup screen shows one button at a time (the step you are on), explains the optional notification
+  permission before Android asks for it, and its hints follow what is actually missing.
+- The notification says "On" instead of "Pass-through".
+
+### Added
+- Google Play version: when a newer version is in the store, "Your access" shows a row with an Update
+  button and the dial's info button carries a small dot. The app asks the Play Store app on the device;
+  it still has no internet permission.
+- A Help link on the setup screen and in "Your access".
+- When a device does not let the app attach its quiet steps, the app says so once and keeps saying it in
+  "Your access". Until now this was only written to the log.
+- A line about battery managers on the setup screen, shown only while the system may put the app to sleep.
+
+### Fixed
+- Rotating the screen: the dial and the edge tab are placed again for the new screen shape. On a phone held
+  sideways the dial is drawn slightly smaller so its lowest part (the level readout and mute) is on screen.
+- The Quick Settings tile, the app icon and the free-week note read whether the control is really running.
+  After the system closed the control, the tile could show On and need two taps.
+- The feature tour waits until the "Add tile" question has been answered. It used to start underneath it.
+- Google Play version: a purchase the device had not heard of yet (new device, reinstall, a payment that
+  was confirmed later) is found whenever a purchase screen or the setup screen opens, not only at the next
+  start. A second tap on the buy button while Google Play is opening is ignored. Restore that finds nothing
+  explains the account switch. A product that is not on sale for the account says so, and that nothing was
+  charged. While a payment is pending the buy button is hidden.
+- The control no longer keeps running without its dial when the "display over other apps" permission was
+  switched off: it stops and opens the setup screen.
+- Screen readers: the links in "Your access" are announced as buttons and are full-size targets, and the
+  dial says when it is locked.
+
+### Unchanged on purpose
+- Trial length, the long-time-user grant, the price, the audio engine, the tour's order and text (its last
+  card now names the X and the i).
+
+## 1.6.4 (versionCode 43)
+
+### Fixed
+- Google Play version: the buy button now always carries the price. It is asked from Google Play as each
+  sheet opens; before, a sheet opened right after a start could show the button with no number, and a
+  long-running app could keep showing a price that had since changed.
+- The access sheet of a finished free week says so: "Your free week is over", with the reason first. It
+  used to read "The dial is locked", which looked like a fault.
+- An app update no longer switches the control off. It comes back by itself under the same rules as a
+  restart: only if it was on, never if you stopped it, and a locked control stays off.
+- The feature tour is shown once. It used to replay after every update.
+- A payment that Google Play is still confirming is shown on the sheets, not only in a passing message.
+- When Google Play purchases are not available on a device or account, the message says that, instead of
+  suggesting a connection problem.
+- The two free-week notes are only counted as shown when they were really shown.
+- The ongoing notification is titled with the app's name.
+
+### Added
+- The purchase, access, free-week and notice texts in German, Spanish, French, Brazilian Portuguese,
+  Indonesian and Polish. The rest of the app stays in English for now.
+- The last-three-days card shows the price on its button once Google Play has reported it.
+
+### Unchanged on purpose
+- Trial length, the long-time-user grant, the price, the dial and the audio engine.
+
+## 1.6.3 (versionCode 42)
+
+### Fixed
+- Tablets, and phones held sideways: the access sheet and the full-range sheet opened as a thin
+  title strip, with the explanation and the buttons hidden below the screen edge until the sheet was
+  dragged up. Both now open fully in every orientation and still close with a swipe down.
+- The feature tour says "Quieter than your device allows" (it said phone, on tablets too).
+
+## 1.6.2 (versionCode 41)
+
+### Changed
+- Google Play version: the end of the free week is now explained, never silent. Two quiet notes in
+  the notification shade, at most once each per install: one within the last 24 hours of the week,
+  and one when the week has ended. The second says plainly what happens next: a control that is
+  running keeps working until it is stopped or the phone restarts, and a control that did not come
+  back after a restart is paused, not broken. Each note is skipped when the app has already said the
+  same thing on screen, never makes a sound, and opens the access sheet on a tap.
+- Nobody who has the full range for good ever sees either note: long-time users, buyers, key owners
+  and the F-Droid build. With notifications turned off for the app, nothing is shown.
+- The trial-over card ends on "Nothing renews and there is no subscription."
+- The feature tour counts six quiet steps below the orange line, as the dial shows (it said seven).
+
+### Unchanged on purpose
+- Trial length and its anchor, the long-time-user grant, the purchase flow, the dial and the audio
+  engine. A trial that ends while the dial runs still takes effect at the next start, never mid-use.
+
+## 1.6.1 (versionCode 40)
+
+### Changed
+- One way to buy. When Google Play cannot complete a purchase on a device, the message now offers
+  a retry only; the app no longer points anyone at the separate Full Range Key app. A key that is
+  already installed still unlocks the app exactly as before, forever.
+
+## 1.6.0 (versionCode 39)
+
+### Changed
+- Google Play version: the full-range unlock can now be bought inside the app. The unlock button on
+  the access sheet, the paywall and the trial card opens Google Play's own purchase window; the
+  price shown on the button is the one Google Play reports for the account and region. A "Restore"
+  link brings a purchase back on a new phone or after a reinstall. The purchase is re-checked
+  against Google Play's record each time the control starts, so a refund locks the range again.
+- The separate Full Range Key app still unlocks the app exactly as before, and is offered as the
+  fallback when Google Play cannot run a purchase on a device. A key owner is thanked for the key
+  and offered nothing to buy.
+- The access sheet and the paywall carry a state badge beside the headline: a closed padlock when
+  the range is locked, an open padlock with a check when it is open, a clock during the free week.
+- No new network access: the app still has no INTERNET permission. Google's billing library is
+  built in without its telemetry component; the only new permission is com.android.vending.BILLING
+  (Google Play version only).
+
+### Unchanged on purpose
+- Trial length and its anchor, the long-time-user grant, the tour, the dial and the audio engine
+  are byte-identical to 1.5.3.
+
 ## 1.5.3 (versionCode 36)
 
 ### Fixed
@@ -72,8 +241,6 @@ yours, free, permanently.
 - Terms of Use updated for the trial and the optional purchase; the app asks you to accept them once.
 
 ### Unchanged
-- The F-Droid build includes everything at no charge, permanently, with no trial and no purchase
-  feature in it.
 - No ads, no tracking, no accounts, and still no internet permission in any version.
 
 ## 1.4.8 (versionCode 28)
@@ -86,6 +253,8 @@ Two fixes on the production line, both first written for the coming 1.5.0 and ba
 
 ## 1.4.6 (versionCode 18)
 
+*Correction, September 2026: regular cellular calls are not lowered. Android plays them on a path this audio effect does not reach. Calls in apps are lowered only where the phone plays them on the media path.*
+
 Reliability release for in-call control, closing the intermittency 1.4.5 left behind. That release re-attached the audio effect once, at the instant the audio mode changed, and that single moment can lose three races: on some phones the call's output path opens a beat after the mode flips, so the re-attach landed on the old path; switching to speaker or Bluetooth mid-call moved the voice audio to an output the effect never followed; and a transient effect-initialisation failure during call setup stranded the app on the weaker fallback with no retry. Each race explains the same field report: control worked in some calls and not in others.
 
 All three are closed. Every re-attach now runs twice, immediately and again one second later once routing has settled. Route changes during a call (speaker, Bluetooth, wired) trigger their own re-attach. And if the effect lands on the fallback strategy, the app retries up to three times. Every pass preserves the chosen attenuation level, and all passes are idempotent, so the worst case of an extra pass is a few silent milliseconds.
@@ -93,6 +262,8 @@ All three are closed. Every re-attach now runs twice, immediately and again one 
 Verified on real hardware across consecutive calls with mid-call speaker switching, and on an emulator across rapid mode-change stress, a live GSM call, and effect-chain integrity checks: exactly one effect chain at all times, no crashes, level preserved through every transition.
 
 ## 1.4.5 (versionCode 17)
+
+*Correction, September 2026: regular cellular calls are not lowered. Android plays them on a path this audio effect does not reach. Calls in apps are lowered only where the phone plays them on the media path.*
 
 In-call fix for the quiet zone, from two matching field reports reproduced at the audio-engine layer. A global audio effect lives on one output path, chosen by the system when the effect is created, and that choice follows where music plays. Call audio, both cellular and VoIP, travels a different output path on many phones, so the quiet zone's attenuation never reached it: steps below the line did nothing during calls while working normally for media on the same device.
 
@@ -115,6 +286,8 @@ A physical volume key press that lands inside a step used to look like nothing h
 Volume behaviour is untouched. The step values, the 5 dB rungs, the audio effect and the absorb policy are byte-identical to 1.4.3.
 
 ## 1.4.3 (versionCode 15)
+
+*Correction, September 2026: regular cellular calls are not lowered. Android plays them on a path this audio effect does not reach. Calls in apps are lowered only where the phone plays them on the media path.*
 
 In-call control, closing the one case where the dial and the physical keys still disagreed. During a cellular or VoIP call, Android routes the physical volume keys to the call volume, a third scale separate from media and ringtone. The dial's upper zone stayed on media volume, so moving it during a call changed nothing audible. The upper zone now follows the same rule as the keys: during a call it drives the call volume, using the call scale's real hardware steps, and the moment the call ends it returns to media volume. The call state is evaluated at the moment of each interaction, the same way Android itself resolves the keys, so this needs no new permissions.
 

@@ -1,28 +1,28 @@
 Ist die Android-Lautstärke selbst auf der niedrigsten Stufe noch zu laut, bei Medien, Klingeltönen oder Benachrichtigungen? Ihr Handy oder Tablet stoppt am Hardware-Minimum. Granular Volume geht darunter.
 
-Ein kleiner schwebender Regler erscheint über jeder App, mit Ihrem gesamten Lautstärkebereich auf einem Schieberegler: normale Systemlautstärke oberhalb der Minimum-Linie Ihres Geräts und eine leise Zone darunter, sieben Stufen bis volle 30 dB unter dem Hardware-Minimum. Frei verschiebbar, an den Rand anlegbar, mit einem Tipp geschlossen. Die Position wird gespeichert.
+Ein kleiner schwebender Regler erscheint über jeder App, mit Ihrem gesamten Lautstärkebereich auf einem Schieberegler: normale Systemlautstärke oberhalb der Minimum-Linie Ihres Geräts und eine leise Zone darunter, sechs Stufen zu je 5 dB bis volle 30 dB unter dem Hardware-Minimum. Frei verschiebbar, an den Rand anlegbar, mit einem Tipp geschlossen. Die Position wird gespeichert.
 
 Dies ist ein Komfort-Werkzeug, kein Gehörschutz. Die tatsächliche Lautstärke hängt von Gerät und Kopfhörern ab, bitte mit Bedacht verwenden.
 
 LEISER ALS IHR GERÄT ERLAUBT
-Die meisten Lautstärke-Apps machen lauter. Granular Volume ist für das andere Ende gebaut: Es senkt die Lautstärke unter die niedrigste Stufe, die die Hardware erlaubt, über Androids eigene Audio-Engine, auf Handys und Tablets. Ohne Root. Kein Ersatz des System-Lautstärkefelds. Keine Werbung, kein Konto, überhaupt keine Internet-Berechtigung. Die leise Zone ist das Herz der App, und derselbe Regler deckt auch den normalen Bereich ab.
+Granular Volume ist für das leise Ende gebaut: Es senkt die Lautstärke unter die niedrigste Stufe, die die Hardware erlaubt, über Androids eigene Audio-Engine, auf Handys und Tablets. Ohne Root. Kein Ersatz des System-Lautstärkefelds. Keine Werbung, kein Konto, überhaupt keine Internet-Berechtigung. Die leise Zone ist das Herz der App, und derselbe Regler deckt auch den normalen Bereich ab.
 
-WENN IHRE LAUTSTÄRKETASTEN NICHT MEHR FUNKTIONIEREN
-Tasten nutzen sich ab, klemmen oder werden von einer Hülle gedrückt. Oberhalb der Linie, die das Minimum Ihres Geräts markiert, stellt der Regler die normale Systemlautstärke ein und ersetzt so die Tasten: nach oben ziehen für lauter, nach unten für leiser, in gleichmäßigen 5-dB-Schritten aus der Lautstärkekurve Ihres eigenen Geräts. Unterhalb der Linie geht es weiter, leiser als das Handy erlaubt. Die Stummschaltung lässt den Wecker in Ruhe, aber die leisen Stufen senken auch Wecker und Klingeltöne.
+WENN IHRE LAUTSTÄRKETASTEN DEFEKT SIND ODER NICHT FUNKTIONIEREN
+Lautstärketasten nutzen sich ab, klemmen, reagieren nicht mehr oder liegen unter einer Hülle. Der Regler ist eine Lautstärkesteuerung auf dem Bildschirm, die sie ersetzt. Oberhalb der Linie, die das Minimum Ihres Geräts markiert, stellt er die normale Systemlautstärke ein: tippen Sie auf einen Balken oder die Pfeile für lauter und leiser, in gleichmäßigen 5-dB-Schritten aus der Lautstärkekurve Ihres eigenen Geräts. Unterhalb der Linie geht es weiter, leiser als das Handy erlaubt. Die Stummschaltung lässt den Wecker in Ruhe, aber die leisen Stufen senken auch Wecker und Klingeltöne.
 
 AUCH FÜR TABLETS
-Tablets haben oft ein noch höheres Minimum als Handys. Granular Volume funktioniert auf Android-Tablets genauso, mit demselben leisen Boden.
+Bei manchen Tablets ist die niedrigste Stufe sogar lauter als beim Handy, je nach Modell. Granular Volume funktioniert auf Android-Tablets genauso, mit demselben leisen Boden.
 
 EIN SCHWEBENDER REGLER, IMMER GRIFFBEREIT
 Der Regler liegt über allem, was Sie gerade tun. App öffnen, Audio starten, und er ist da. Frei platzierbar oder zwischendurch am Rand geparkt. Ein Tipp schließt ihn. Die letzte Position wird gemerkt.
 
 SCHNELLEINSTELLUNGEN-KACHEL
-Nach unten wischen, einmal tippen. Fügen Sie Granular Volume Ihren Schnelleinstellungen hinzu und schalten Sie das Overlay ein oder aus, ohne die App zu öffnen.
+Nach unten wischen, einmal tippen. Nach der ersten Einrichtung schalten Sie den Regler über die Kachel „Quiet Dial“ in den Schnelleinstellungen ein und aus.
 
 FÜR LEISE MOMENTE GEMACHT
 - App-Anrufe wie WhatsApp, sofern das Handy sie über den Medienausgang abspielt; das ist je nach Gerät verschieden. Normale Telefonate laufen über einen eigenen Weg, den keine App absenken kann
 - Empfindliche In-Ears und Kopfhörer, bei denen schon Stufe 1 zu laut ist
-- Tablet-Lautsprecher und -Kopfhörer, deren Minimum oft noch lauter ist als am Handy
+- Tablet-Lautsprecher und -Kopfhörer, deren Minimum bei manchen Modellen noch lauter ist als am Handy
 - Weißes Rauschen oder Schlaflieder für ein schlafendes Baby, kaum hörbar
 - Nächtliches Hören neben einem schlafenden Partner
 - Leise Räume, Bibliotheken, Großraumbüros, Meditation

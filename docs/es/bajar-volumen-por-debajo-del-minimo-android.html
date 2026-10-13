@@ -4,16 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bajar el volumen de Android por debajo del mínimo</title>
-<meta name="description" content="¿El volumen mínimo sigue siendo demasiado alto? Cómo bajar por debajo del paso más bajo de Android, en siete niveles hasta -30 dB. Sin root.">
+<meta name="description" content="¿El volumen mínimo sigue siendo demasiado alto? Cómo bajar por debajo del paso más bajo de Android, en seis pasos de 5 dB, hasta -30 dB. Sin root.">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://granularvolume.com/es/bajar-volumen-por-debajo-del-minimo-android.html">
+<link rel="alternate" hreflang="en" href="https://granularvolume.com/guide/lower-android-volume-below-minimum.html">
+<link rel="alternate" hreflang="de" href="https://granularvolume.com/de/lautstaerke-unter-minimum-android.html">
 <link rel="alternate" hreflang="es" href="https://granularvolume.com/es/bajar-volumen-por-debajo-del-minimo-android.html">
 <link rel="alternate" hreflang="fr" href="https://granularvolume.com/fr/baisser-volume-sous-le-minimum-android.html">
-<link rel="alternate" hreflang="de" href="https://granularvolume.com/de/lautstaerke-unter-minimum-android.html">
-<link rel="alternate" hreflang="en" href="https://granularvolume.com/guide/lower-android-volume-below-minimum.html">
+<link rel="alternate" hreflang="it" href="https://granularvolume.com/it/abbassare-volume-sotto-il-minimo-android.html">
+<link rel="alternate" hreflang="pt-BR" href="https://granularvolume.com/pt/baixar-volume-abaixo-do-minimo-android.html">
 <link rel="alternate" hreflang="x-default" href="https://granularvolume.com/guide/lower-android-volume-below-minimum.html">
 <meta property="og:title" content="Bajar el volumen de Android por debajo del mínimo">
-<meta property="og:description" content="¿El volumen mínimo sigue siendo demasiado alto? Cómo bajar por debajo del paso más bajo de Android, en siete niveles hasta -30 dB. Sin root.">
+<meta property="og:description" content="¿El volumen mínimo sigue siendo demasiado alto? Cómo bajar por debajo del paso más bajo de Android, en seis pasos de 5 dB, hasta -30 dB. Sin root.">
 <meta property="og:image" content="https://granularvolume.com/img/feature.png">
 <meta property="og:type" content="article">
 <meta property="og:locale" content="es_ES">
@@ -24,12 +26,12 @@
   "@type": "Article",
   "inLanguage": "es",
   "headline": "Bajar el volumen de Android por debajo del mínimo",
-  "description": "¿El volumen mínimo sigue siendo demasiado alto? Cómo bajar por debajo del paso más bajo de Android, en siete niveles hasta -30 dB. Sin root.",
+  "description": "¿El volumen mínimo sigue siendo demasiado alto? Cómo bajar por debajo del paso más bajo de Android, en seis pasos de 5 dB, hasta -30 dB. Sin root.",
   "image": "https://granularvolume.com/img/feature.png",
   "author": {"@type": "Person", "name": "Rotem Zussman"},
   "publisher": {"@type": "Person", "name": "Rotem Zussman", "alternateName": "Granular Apps"},
   "datePublished": "2026-08-02",
-  "dateModified": "2026-08-02",
+  "dateModified": "2026-10-12",
   "mainEntityOfPage": "https://granularvolume.com/es/bajar-volumen-por-debajo-del-minimo-android.html"
 }
 </script>
@@ -41,33 +43,59 @@
   "mainEntity": [
     {
       "@type": "Question",
-      "name": "¿Por qué el volumen más bajo de mi móvil sigue sonando tan fuerte?",
-      "acceptedAnswer": {"@type": "Answer", "text": "Android divide el rango entre el silencio y la salida máxima en un número fijo de pasos, normalmente entre 15 y 25. El paso más bajo por encima del silencio es una fracción fija de ese máximo, no un volumen absoluto. En dispositivos con un máximo potente, ese primer paso sigue siendo incómodo. En los ajustes de Android no existe ninguna opción para mover ese suelo."}
+      "name": "¿Por qué el volumen más bajo de mi móvil o celular sigue sonando tan fuerte?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Android divide el rango entre el silencio y la salida máxima en un número fijo de pasos, normalmente entre 15 y 25. El paso más bajo por encima del silencio es una fracción fija de ese máximo, no un volumen absoluto. En dispositivos con un máximo potente, ese primer paso sigue siendo incómodo. En los ajustes de Android no existe ninguna opción para mover ese suelo."
+      }
     },
     {
       "@type": "Question",
       "name": "¿Sound Assistant baja el suelo de volumen?",
-      "acceptedAnswer": {"@type": "Answer", "text": "Un poco, y luego deja de bajar. Sound Assistant, dentro de Good Lock de Samsung, permite ajustar el volumen en pasos del 1 por ciento, y ese primer paso sí queda más bajo que el primero de diez, porque Android sitúa cada paso en una curva de atenuación fija según su posición en el rango: unos 5 dB en una configuración de Android 16 que medimos en agosto de 2026. Esa curva tiene un fondo fijo que ningún número de pasos rebasa. Si tu problema son los saltos bruscos, es la solución correcta. Si el problema es el suelo, no lo es."}
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Un poco, y luego deja de bajar. Sound Assistant, dentro de Good Lock de Samsung, permite ajustar el volumen en pasos del 1 por ciento, y ese primer paso sí queda más bajo que el primero de diez, porque Android sitúa cada paso en una curva de atenuación fija según su posición en el rango: unos 5 dB en una configuración de Android 16 que medimos en agosto de 2026. Esa curva tiene un fondo fijo que ningún número de pasos rebasa. Si tu problema son los saltos bruscos, es la solución correcta. Si el problema es el suelo, no lo es."
+      }
     },
     {
       "@type": "Question",
       "name": "¿Sirve desactivar Dolby Atmos o el ecualizador?",
-      "acceptedAnswer": {"@type": "Answer", "text": "A veces, un poco. Las mejoras de sonido como Dolby Atmos añaden ganancia, y desactivarlas puede reducir la salida de forma audible en algunos dispositivos. No es fiable: en muchos móviles no cambia nada, y donde ayuda estás renunciando a una función que quizá quieras conservar."}
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A veces, un poco. Las mejoras de sonido como Dolby Atmos añaden ganancia, y desactivarlas puede reducir la salida de forma audible en algunos dispositivos. No es fiable: en muchos móviles no cambia nada, y donde ayuda estás renunciando a una función que quizá quieras conservar."
+      }
     },
     {
       "@type": "Question",
       "name": "¿Se puede hacer sin root?",
-      "acceptedAnswer": {"@type": "Answer", "text": "Sí. Android expone una interfaz de efectos de audio con la que una aplicación puede aplicar ganancia negativa a la mezcla de salida, por debajo de los pasos de volumen. No hace falta root, ni ADB, ni modificar archivos del sistema."}
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Sí. Android expone una interfaz de efectos de audio con la que una aplicación puede aplicar ganancia negativa a la mezcla de salida, por debajo de los pasos de volumen. No hace falta root, ni ADB, ni modificar archivos del sistema."
+      }
     },
     {
       "@type": "Question",
       "name": "¿También baja las llamadas, la alarma y las notificaciones?",
-      "acceptedAnswer": {"@type": "Answer", "text": "El contenido multimedia, los tonos, las notificaciones y la alarma pasan por la misma ruta de salida mezclada y bajan con ella. Las llamadas de apps como WhatsApp también, si el teléfono las reproduce por esa misma ruta, lo que depende del modelo. Las llamadas telefónicas normales no: en cualquier teléfono, Android lleva la voz de la red móvil por una ruta aparte que ninguna app alcanza. Los tonos del teclado y los sonidos de la interfaz no, como se explica más abajo."}
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "El contenido multimedia, los tonos, las notificaciones y la alarma pasan por la misma ruta de salida mezclada y bajan con ella. Las llamadas de apps como WhatsApp también, si el teléfono las reproduce por esa misma ruta, lo que depende del modelo. Las llamadas telefónicas normales no: en cualquier teléfono, Android lleva la voz de la red móvil por una ruta aparte que ninguna app alcanza. Los tonos del teclado y los sonidos de la interfaz no, como se explica más abajo."
+      }
     },
     {
       "@type": "Question",
       "name": "¿Por qué no bajan los tonos del teclado?",
-      "acceptedAnswer": {"@type": "Answer", "text": "Los clics del teclado y los sonidos de la interfaz usan una ruta separada de baja latencia que se salta los efectos de audio a propósito, porque los efectos añaden retardo. Es un límite del propio Android, no de una aplicación concreta. Ninguna aplicación que trabaje con un efecto sobre la mezcla de salida puede alcanzarlos."}
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Los clics del teclado y los sonidos de la interfaz usan una ruta separada de baja latencia que se salta los efectos de audio a propósito, porque los efectos añaden retardo. Es un límite del propio Android, no de una aplicación concreta. Ninguna aplicación que trabaje con un efecto sobre la mezcla de salida puede alcanzarlos."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "¿Es gratis?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "La instalación es gratuita y los primeros siete días tras instalarla son la app completa. Después, el control necesita un pago único dentro de la app a través de Google Play. Nada se renueva y no hay suscripción. Sin anuncios, sin cuenta y sin permiso de internet."
+      }
     }
   ]
 }
@@ -213,8 +241,8 @@
     <div class="crumb"><a href="../">Granular Volume</a> / Guía</div>
     <div class="icon"><img src="../img/icon.webp" alt="Icono de Granular Volume"></div>
     <h1>Cómo bajar el volumen de Android por debajo del mínimo</h1>
-    <p class="dek">Tienes el volumen en el paso más bajo y sigue sonando demasiado fuerte. No es un ajuste que se te haya pasado por alto. Android tiene un suelo de volumen, y desde los ajustes no hay forma de pasar por debajo.</p>
-    <p class="meta">Publicado el 2 de agosto de 2026 &middot; 8 min de lectura</p>
+    <p class="dek">Tienes el volumen del móvil o celular en el paso más bajo y sigue sonando demasiado fuerte. No es un ajuste que se te haya pasado por alto. Android tiene un suelo de volumen, y desde los ajustes no hay forma de pasar por debajo.</p>
+    <p class="meta">Actualizado el 12 de octubre de 2026 &middot; 8 min de lectura</p>
   </header>
 <main id="main" tabindex="-1">
 
@@ -225,7 +253,7 @@
       <a class="btn btn-primary" href="https://play.google.com/store/apps/details?id=granularvolume.com&amp;referrer=utm_source%3Dsite%26utm_medium%3Dcta%26utm_campaign%3Dbajar-volumen-por-debajo-del-minimo-android" data-goatcounter-click="play-cta-bajar-volumen-por-debajo-del-minimo-android">En Play Store</a>
       <a class="btn btn-ghost" href="#metodos">Ver todos los métodos</a>
     </div>
-      <p class="setup-note">Después de instalar, ábrela una vez y permite que se muestre sobre otras apps. Esa es toda la configuración.</p>
+      <p class="setup-note">Después de instalar, ábrela una vez y permite que se muestre sobre otras apps. Esa es toda la configuración. Durante siete días todo está abierto; después, el control necesita un pago único dentro de la app, sin suscripción.</p>
   </div>
 
   <article>
@@ -246,7 +274,7 @@
 
     <p>El control de volumen de Android divide el rango entre el silencio y la salida máxima en un número fijo de pasos, normalmente entre 15 y 25 según el dispositivo. El paso más bajo por encima del silencio es una <strong>fracción fija de ese máximo</strong>, no un volumen absoluto.</p>
 
-    <p>Eso explica dos cosas a la vez. Primera: cuanto más alto puede sonar tu dispositivo, más alto suena también su paso más bajo. Por eso las tablets y los móviles con altavoces potentes suelen ser peores. Segunda: si una actualización del sistema sube el volumen general, el suelo sube con él sin que tú hayas tocado nada.</p>
+    <p>Eso explica dos cosas a la vez. Primera: cuanto más alto puede sonar tu dispositivo, más alto suena también su paso más bajo. Por eso las tablets y los móviles con altavoces potentes pueden ser peores, según el modelo. Segunda: si una actualización del sistema sube el volumen general, el suelo sube con él sin que tú hayas tocado nada.</p>
 
     <p>Y como es una fracción, en los ajustes no hay ningún control para ello. Sencillamente no existe nada que mover.</p>
 
@@ -254,7 +282,7 @@
 
     <div class="fixcard">
       <h3>Arrastrar el deslizador del panel de volumen en vez de usar los botones <span class="verdict v-partial">Parcial</span></h3>
-      <p>En muchos dispositivos el deslizador se puede ajustar con más finura de lo que saltan los botones. Es una mejora real si tu problema son los <em>saltos bruscos</em>.</p>
+      <p>En Android estándar el deslizador y los botones caen en los mismos pasos. En las versiones de algunos fabricantes el deslizador puede detenerse entre dos pasos; eso ayuda si tu problema son los <em>saltos bruscos</em>.</p>
       <p>Pero no baja el suelo. El punto más bajo al que puedes llegar es el mismo de antes.</p>
     </div>
 
@@ -284,8 +312,8 @@
 
     <div class="fixcard">
       <h3>Aplicar ganancia negativa a la mezcla de salida <span class="verdict v-works">Funciona</span></h3>
-      <p>La misma idea que el archivo renderizado más bajo, pero automática y para todo. Android expone una interfaz de efectos de audio con la que una aplicación puede atenuar la salida <strong>por debajo</strong> de los pasos de volumen. Sin root, sin ADB, sin tocar archivos del sistema.</p>
-      <p>Así funciona la aplicación detrás de esta página. Siete pasos desde sin cambio hasta 30 dB por debajo de tu mínimo de hardware, con un pequeño control flotante que se sitúa sobre cualquier aplicación. Desde la versión 1.4.0 el mismo control cubre también el rango normal por encima del mínimo del dispositivo, en pasos uniformes de 5 dB, así que puede sustituir botones de volumen desgastados o rotos.</p>
+      <p>La misma idea que el archivo renderizado más bajo, pero automática y para todas las apps. Android expone una interfaz de efectos de audio con la que una aplicación puede atenuar la salida <strong>por debajo</strong> de los pasos de volumen. Sin root, sin ADB, sin tocar archivos del sistema.</p>
+      <p>Así funciona la aplicación detrás de esta página. Seis pasos más bajos, de 5 dB cada uno, hasta 30 dB por debajo de tu mínimo de hardware, con un pequeño control flotante que se sitúa sobre cualquier aplicación. Desde la versión 1.4.0 el mismo control cubre también el rango normal por encima del mínimo del dispositivo, en pasos uniformes, así que puede sustituir botones de volumen desgastados o rotos.</p>
     </div>
 
     <div class="warn">
@@ -303,7 +331,7 @@
 
     <div class="warn">
       <div class="kicker">Importante con la alarma</div>
-      <p>Si bajas la alarma, pruébalo unas cuantas noches antes de confiar en ello. Bajar una alarma es exactamente el tipo de cambio en el que equivocarse te cuesta quedarte dormido. Empieza un paso por encima del mínimo y ve bajando poco a poco.</p>
+      <p>Si bajas la alarma, pruébalo unas cuantas noches antes de confiar en ello. Bajar una alarma es exactamente el tipo de cambio en el que equivocarse te cuesta quedarte dormido. Empieza por el primer paso por debajo de la línea y baja de uno en uno.</p>
     </div>
 
     <div class="callout">
@@ -314,13 +342,13 @@
         <a class="btn btn-primary" href="https://play.google.com/store/apps/details?id=granularvolume.com&amp;referrer=utm_source%3Dsite%26utm_medium%3Dcta%26utm_campaign%3Dbajar-volumen-por-debajo-del-minimo-android" data-goatcounter-click="play-cta-bajar-volumen-por-debajo-del-minimo-android">Ver en Play Store</a>
         <a class="btn btn-ghost" href="https://github.com/Rzuss/granular-volume">Código en GitHub</a>
       </div>
-      <p class="setup-note">Después de instalar, ábrela una vez y permite que se muestre sobre otras apps. Esa es toda la configuración.</p>
+      <p class="setup-note">Después de instalar, ábrela una vez y permite que se muestre sobre otras apps. Esa es toda la configuración. Durante siete días todo está abierto; después, el control necesita un pago único dentro de la app, sin suscripción.</p>
     </div>
 
     <h2 id="faq">Preguntas frecuentes</h2>
 
     <dl class="faq">
-      <dt>¿Por qué el volumen más bajo de mi móvil sigue sonando tan fuerte?</dt>
+      <dt>¿Por qué el volumen más bajo de mi móvil o celular sigue sonando tan fuerte?</dt>
       <dd>Porque es una fracción fija del volumen máximo, no un volumen absoluto. En un dispositivo con un máximo potente, el primer paso por encima del silencio también suena fuerte. En los ajustes de Android no hay forma de cambiarlo.</dd>
 
       <dt>¿Sound Assistant baja el suelo de volumen?</dt>
@@ -339,10 +367,12 @@
       <dd>Usan una ruta separada de baja latencia que se salta los efectos de audio a propósito. Es un límite de Android y ninguna aplicación puede sortearlo. Eso sí, se pueden desactivar por separado en los ajustes de sonido.</dd>
 
       <dt>¿Funciona también en tablets?</dt>
-      <dd>Sí, y ahí el efecto suele notarse más, porque las tablets suelen tener un mínimo aún más alto que los móviles debido a sus altavoces más grandes.</dd>
+      <dd>Sí. En algunas tablets el volumen mínimo es aún más alto que en un móvil, según el modelo, y ahí el efecto se nota más.</dd>
 
       <dt>¿Vuelve el ajuste después de reiniciar?</dt>
       <dd>Sí, si el control estaba activo al apagar, se restaura tras el reinicio en el mismo nivel. Si lo paraste tú, sigue parado.</dd>
+      <dt>¿Es gratis?</dt>
+      <dd>La instalación es gratuita y los primeros siete días tras instalarla son la app completa. Después, el control necesita un pago único dentro de la app a través de Google Play. Nada se renueva y no hay suscripción. Sin anuncios, sin cuenta y sin permiso de internet.</dd>
     </dl>
 
   </article>
@@ -359,7 +389,10 @@
     <br>
     Otros idiomas:
     <a href="../guide/lower-android-volume-below-minimum.html" hreflang="en">English</a> &middot;
-    <a href="../de/lautstaerke-unter-minimum-android.html" hreflang="de">Deutsch</a>.
+    <a href="../de/lautstaerke-unter-minimum-android.html" hreflang="de">Deutsch</a> &middot;
+    <a href="../fr/baisser-volume-sous-le-minimum-android.html" hreflang="fr" lang="fr">Français</a> &middot;
+    <a href="../it/abbassare-volume-sotto-il-minimo-android.html" hreflang="it" lang="it">Italiano</a> &middot;
+    <a href="../pt/baixar-volume-abaixo-do-minimo-android.html" hreflang="pt-BR" lang="pt-BR">Português</a>.
   <br>  Este sitio cuenta visitas con GoatCounter, sin cookies y sin guardar direcciones IP ni otros datos personales.
   </div>
 </footer>

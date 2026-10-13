@@ -13,7 +13,7 @@
 >
 > | This document says | Shipped reality | Authority |
 > |---|---|---|
-> | 10 steps of -3.33 dB (lines 48, 219, 295) | **7 steps of 5 dB**, `[-30,-25,-20,-15,-10,-5, 0]` | `OverlayManager.kt` `STEP_DB` |
+> | 10 steps of -3.33 dB (lines 48, 219, 295) | **six quiet steps of 5 dB** below the minimum (seven positions with 0 dB), `[-30,-25,-20,-15,-10,-5, 0]` | `OverlayManager.kt` `STEP_DB` |
 > | `targetSdk = 34` / `compileSdk = 34` (lines 104-105) | **36 / 36** | `build.gradle.kts` |
 > | `FOREGROUND_SERVICE_MEDIA_PLAYBACK` (line 155) | **`FOREGROUND_SERVICE_SPECIAL_USE`** | `AndroidManifest.xml` |
 > | "for Android Tablets" (title) | Ships for **phones and tablets** alike | Play listing, `docs/` |

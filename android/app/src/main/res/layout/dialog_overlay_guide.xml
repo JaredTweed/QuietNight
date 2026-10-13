@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 1.7.2: shown before Android's "Display over other apps" list is opened (Android 11+).
+     One job: the reader should know what to look for in that list before they are in it.
+     Large type and three numbered steps; nothing else on the screen. -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_screen_gradient"
+    android:fillViewport="true"
+    android:fitsSystemWindows="true"
+    android:scrollbars="none">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingLeft="28dp"
+        android:paddingRight="28dp"
+        android:paddingTop="36dp"
+        android:paddingBottom="28dp">
+
+        <TextView
+            android:id="@+id/tv_guide_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/gv_guide_title"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:textColor="@color/gv_text_primary"
+            android:accessibilityHeading="true" />
+
+        <LinearLayout
+            android:id="@+id/gv_guide_row"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/bg_guide_row"
+            android:padding="16dp"
+            android:layout_marginTop="20dp"
+            android:focusable="true"
+            android:contentDescription="@string/gv_guide_row_desc">
+
+            <ImageView
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:src="@mipmap/ic_launcher"
+                android:importantForAccessibility="no" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="14dp"
+                android:text="@string/app_name"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="@color/gv_text_primary"
+                android:importantForAccessibility="no" />
+
+            <ImageView
+                android:layout_width="52dp"
+                android:layout_height="32dp"
+                android:src="@drawable/ic_guide_switch_on"
+                android:importantForAccessibility="no" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:baselineAligned="false"
+            android:layout_marginTop="26dp">
+
+            <TextView
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:gravity="center"
+                android:background="@drawable/bg_guide_num"
+                android:text="1"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/gv_text_primary"
+                android:importantForAccessibility="no" />
+
+            <TextView
+                android:id="@+id/tv_guide_step1"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="14dp"
+                android:text="@string/gv_guide_step1"
+                android:textSize="17sp"
+                android:lineSpacingMultiplier="1.25"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:textColor="@color/gv_text_primary" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:baselineAligned="false"
+            android:layout_marginTop="18dp">
+
+            <TextView
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:gravity="center"
+                android:background="@drawable/bg_guide_num"
+                android:text="2"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/gv_text_primary"
+                android:importantForAccessibility="no" />
+
+            <TextView
+                android:id="@+id/tv_guide_step2"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="14dp"
+                android:text="@string/gv_guide_step2"
+                android:textSize="17sp"
+                android:lineSpacingMultiplier="1.25"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:textColor="@color/gv_text_primary" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:baselineAligned="false"
+            android:layout_marginTop="18dp">
+
+            <TextView
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:gravity="center"
+                android:background="@drawable/bg_guide_num"
+                android:text="3"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/gv_text_primary"
+                android:importantForAccessibility="no" />
+
+            <TextView
+                android:id="@+id/tv_guide_step3"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="14dp"
+                android:text="@string/gv_guide_step3"
+                android:textSize="17sp"
+                android:lineSpacingMultiplier="1.25"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:textColor="@color/gv_text_primary" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:minHeight="24dp" />
+
+        <Button
+            android:id="@+id/btn_guide_open"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="@string/gv_guide_open"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textAllCaps="false"
+            android:textColor="@color/gv_btn_primary_text"
+            android:background="@drawable/bg_btn_primary"
+            android:stateListAnimator="@null"
+            android:elevation="0dp"
+            android:maxLines="1" />
+
+        <TextView
+            android:id="@+id/btn_guide_cancel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:gravity="center"
+            android:text="@string/gv_guide_cancel"
+            android:textSize="15sp"
+            android:textColor="@color/gv_accent_text"
+            android:layout_marginTop="6dp" />
+    </LinearLayout>
+</ScrollView>

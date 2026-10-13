@@ -6,3 +6,7 @@
 
 # Framework audio classes are part of the platform — silence missing-class warnings.
 -dontwarn android.media.audiofx.**
+
+# 1.6.0: Play Billing references Google datatransport telemetry, which is excluded on purpose
+# (see build.gradle.kts). Billing catches its absence at runtime.
+-dontwarn com.google.android.datatransport.**
