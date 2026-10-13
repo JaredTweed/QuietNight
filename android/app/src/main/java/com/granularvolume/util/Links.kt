@@ -16,6 +16,9 @@ object Links {
     const val HELP_FIND = "https://granularvolume.com/help.html#find"
 
     fun open(context: Context, url: String) {
+        // Android's own log shortens the address of a VIEW request on older versions, so the
+        // app says which page it asked for. These are fixed public addresses, nothing personal.
+        android.util.Log.i("GranularVolume", "open link: $url")
         runCatching {
             context.startActivity(
                 Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
