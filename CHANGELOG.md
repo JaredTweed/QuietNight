@@ -2,6 +2,22 @@
 
 All notable changes to Granular Volume are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.7.2 (versionCode 52)
+
+The first setup step only. Nothing about the dial, the sound, the free week, the unlock or the price changes.
+
+### Changed
+- Android 11 and later: the permission to display over other apps is granted in a list of every app, which
+  Android opens in place of this app's own switch. The app now shows, before that list opens, the icon, the
+  name and the switch to look for, with three numbered steps in large type.
+- When the switch is turned on, the app comes back to the front by itself and carries on. Pressing back,
+  twice on most devices, is no longer a step to work out. The app watches only its own permission, only
+  while the user is on that errand, and for five minutes at most.
+- Coming back with the switch still off used to show a two-second message. A card now stays on the screen:
+  what to look for, a button for a second try, and a link to the help page.
+- Android 9 and 10 open the app's own switch directly; there the guide is skipped and the return is the same.
+- The guide and the card are in English, German, Spanish, French, Indonesian, Polish and Portuguese (Brazil).
+
 ## 1.7.1 (versionCode 51)
 
 Fixes only. Nothing about the free week, the unlock or the price changes.

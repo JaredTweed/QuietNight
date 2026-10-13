@@ -61,4 +61,18 @@
         <item quantity="one">Il reste un jour d\'accès complet</item>
         <item quantity="other">Il reste %d jours d\'accès complet</item>
     </plurals>
+
+    <!-- 1.7.2: the guide shown before Android's "Display over other apps" list, and the card
+         shown when the user comes back with the switch still off. -->
+    <string name="gv_guide_title">Cherchez ceci dans la liste</string>
+    <string name="gv_guide_row_desc">Quiet Dial, avec l\'interrupteur activé</string>
+    <string name="gv_guide_step1">Touchez Ouvrir la liste. Android affiche la liste de vos applications.</string>
+    <string name="gv_guide_step2">Faites défiler jusqu\'à cette icône et touchez-la. Si la liste a un bouton de recherche, vous pouvez saisir Quiet.</string>
+    <string name="gv_guide_step3">Activez l\'interrupteur. Vous revenez ici automatiquement. Sinon, touchez Retour.</string>
+    <string name="gv_guide_open">Ouvrir la liste</string>
+    <string name="gv_guide_cancel">Plus tard</string>
+    <string name="gv_retry_title">L\'interrupteur est encore désactivé</string>
+    <string name="gv_retry_body">Dans la liste, cherchez Quiet Dial, touchez-le et activez son interrupteur.</string>
+    <string name="gv_retry_open">Rouvrir la liste</string>
+    <string name="gv_retry_help">Introuvable ? Voir l\'aide</string>
 </resources>

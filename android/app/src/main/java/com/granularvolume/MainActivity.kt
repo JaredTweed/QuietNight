@@ -1,6 +1,7 @@
 package com.granularvolume
 
 import android.Manifest
+import android.app.Dialog
 import android.app.StatusBarManager
 import android.content.ComponentName
 import android.content.Intent
@@ -11,6 +12,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
+import android.provider.Settings
 import android.util.Log
 import android.view.View
 import android.widget.Button
@@ -28,6 +30,7 @@ import com.granularvolume.util.BillingManager
 import com.granularvolume.util.ControlLive
 import com.granularvolume.util.Entitlement
 import com.granularvolume.util.Links
+import com.granularvolume.util.OverlayGrantWatcher
 import com.granularvolume.util.PermissionHelper
 import com.granularvolume.util.ProAccess
 import com.granularvolume.util.PurchaseFlow
@@ -57,11 +60,14 @@ class MainActivity : AppCompatActivity() {
     private val overlayPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
+        // 1.7.2: the watcher's errand is over either way once this screen is back.
+        OverlayGrantWatcher.stop(this)
         if (PermissionHelper.canDrawOverlays(this)) {
             launchService()
         } else {
+            // Back with the switch still off. A toast said so for two seconds; the card
+            // that updateStatus() now shows stays, and repeats what to look for.
             updateStatus()
-            Toast.makeText(this, R.string.gv_toast_overlay_required, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -72,6 +78,15 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val STATE_TRIAL_CARD = "trial_card_showing"
+        private const val STATE_OVERLAY_TRIED = "overlay_tried"
+        private const val STATE_OVERLAY_GUIDE = "overlay_guide_showing"
+
+        /**
+         * Android 11 and later open the list of every app for "Display over other apps" and
+         * ignore the package in the request; Android 9 and 10 open this app's own switch.
+         * The guide explains a list, so it is shown only where there is one.
+         */
+        private val OVERLAY_OPENS_A_LIST = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
 
         /**
          * Version of the Terms this build presents. Bump ONLY on a material change to the
@@ -110,9 +125,21 @@ class MainActivity : AppCompatActivity() {
     private var trialCardShowing = false
     private var trialCardRestored = false
 
+    /** 1.7.2: the settings screen was opened from here at least once in this visit. */
+    private var overlayTried = false
+    private var overlayGuide: Dialog? = null
+
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putBoolean(STATE_TRIAL_CARD, trialCardShowing)
+        outState.putBoolean(STATE_OVERLAY_TRIED, overlayTried)
+        outState.putBoolean(STATE_OVERLAY_GUIDE, overlayGuide?.isShowing == true)
+    }
+
+    override fun onDestroy() {
+        overlayGuide?.dismiss()
+        overlayGuide = null
+        super.onDestroy()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -146,6 +173,7 @@ class MainActivity : AppCompatActivity() {
         // the card. Its once-a-day turn is recorded when it is drawn, so the rebuilt screen saw
         // "already shown today", started the control and closed itself under the reader.
         trialCardRestored = savedInstanceState?.getBoolean(STATE_TRIAL_CARD, false) == true
+        overlayTried = savedInstanceState?.getBoolean(STATE_OVERLAY_TRIED, false) == true
         val cardShowing = setupTipjarCard()
 
         if (isSetUp() && !cardShowing) {
@@ -159,14 +187,67 @@ class MainActivity : AppCompatActivity() {
         updateStatus()
 
         findViewById<Button>(R.id.btn_grant_overlay).setOnClickListener {
-            overlayPermissionLauncher.launch(PermissionHelper.overlayPermissionIntent(this))
+            // 1.7.2: the first time, on a device that will show a list, say what to look for
+            // before the list is on screen. A second try goes straight there: the card above
+            // the button already repeats it.
+            if (OVERLAY_OPENS_A_LIST && !overlayTried) showOverlayGuide() else openOverlaySettings()
         }
+        findViewById<Button>(R.id.btn_retry_open).setOnClickListener { openOverlaySettings() }
+        findViewById<TextView>(R.id.btn_retry_help).setOnClickListener { Links.open(this, Links.HELP_FIND) }
+        // A rotation while the guide is up keeps the guide: the reader is in the middle of it.
+        if (savedInstanceState?.getBoolean(STATE_OVERLAY_GUIDE, false) == true &&
+            hasAcceptedTerms() && !PermissionHelper.canDrawOverlays(this)
+        ) showOverlayGuide()
 
         findViewById<Button>(R.id.btn_start_service).setOnClickListener {
             if (!PermissionHelper.canDrawOverlays(this)) {
                 Toast.makeText(this, R.string.gv_toast_grant_first, Toast.LENGTH_SHORT).show()
             } else {
                 launchService()
+            }
+        }
+    }
+
+    /**
+     * The guide (1.7.2): the app's own icon, name and a switch drawn in the ON position, then
+     * three numbered steps in large type. Its only purpose is that the reader knows the row
+     * they are looking for before Android's list of every app is in front of them.
+     */
+    private fun showOverlayGuide() {
+        if (isFinishing || isDestroyed) return
+        overlayGuide?.dismiss()
+        val dialog = Dialog(this, R.style.Theme_GranularVolume)
+        dialog.setContentView(R.layout.dialog_overlay_guide)
+        dialog.findViewById<Button>(R.id.btn_guide_open).setOnClickListener {
+            dialog.dismiss()
+            openOverlaySettings()
+        }
+        dialog.findViewById<TextView>(R.id.btn_guide_cancel).setOnClickListener { dialog.dismiss() }
+        dialog.setOnDismissListener { if (overlayGuide === dialog) overlayGuide = null }
+        overlayGuide = dialog
+        dialog.show()
+    }
+
+    /**
+     * Opens Android's screen for the permission and starts watching for the grant, so the
+     * user is brought back the moment the switch is on (see [OverlayGrantWatcher]).
+     */
+    private fun openOverlaySettings() {
+        overlayTried = true
+        OverlayGrantWatcher.start(this)
+        try {
+            overlayPermissionLauncher.launch(PermissionHelper.overlayPermissionIntent(this))
+        } catch (e: Exception) {
+            // No such screen on this device (seen on some TV and vendor builds). The app's own
+            // settings page is the nearest place the switch can be reached from.
+            Log.w("GranularVolume", "overlay settings screen unavailable: ${e.message}")
+            runCatching {
+                overlayPermissionLauncher.launch(
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
+                )
+            }.onFailure {
+                OverlayGrantWatcher.stop(this)
+                updateStatus()
             }
         }
     }
@@ -188,6 +269,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // 1.7.2: back in front, by the watcher or by the user. Either way it has done its job.
+        OverlayGrantWatcher.stop(this)
         updateStatus()
         recheckOwnership()
     }
@@ -545,6 +628,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.tv_hint).text = getString(
             when {
                 !consented -> R.string.gv_hint_consent
+                !overlayOk && !OVERLAY_OPENS_A_LIST -> R.string.gv_hint_grant_direct
                 !overlayOk -> R.string.gv_hint_grant_first
                 state == AccessState.LOCKED -> R.string.gv_hint_locked
                 else -> R.string.gv_hint_ready
@@ -554,9 +638,24 @@ class MainActivity : AppCompatActivity() {
         // Both CTAs stay disabled until the Terms are actively accepted (clickwrap).
         // 1.7.0: one button at a time, the one for the step the user is on. Showing both, one
         // of them always disabled, pushed "Start" below the fold once the screen gained a row.
+        // 1.7.2: back from Android's list with the switch still off. The card says so and
+        // stays; the hint steps aside for it and the button offers the second try.
+        val retry = consented && !overlayOk && overlayTried
+        val retryCard = findViewById<View>(R.id.gv_overlay_retry_card)
+        val retryWasShown = retryCard.visibility == View.VISIBLE
+        retryCard.visibility = if (retry) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.tv_hint).visibility = if (retry) View.GONE else View.VISIBLE
         findViewById<Button>(R.id.btn_grant_overlay).apply {
-            visibility = if (overlayOk) View.GONE else View.VISIBLE
+            // The card carries its own button for the second try, so there is one button
+            // on the screen for this step, and it is next to the words that explain it.
+            visibility = if (overlayOk || retry) View.GONE else View.VISIBLE
             isEnabled = consented && !overlayOk
+        }
+        // The screen is taller than most phones once the card is added. Bring the card into
+        // view when it appears, or the reader comes back to a screen that looks unchanged.
+        if (retry && !retryWasShown) {
+            val scroll = findViewById<android.widget.ScrollView>(R.id.gv_main_scroll)
+            scroll.post { scroll.smoothScrollTo(0, retryCard.top - (16 * resources.displayMetrics.density).toInt()) }
         }
         findViewById<Button>(R.id.btn_start_service).apply {
             visibility = if (overlayOk) View.VISIBLE else View.GONE
