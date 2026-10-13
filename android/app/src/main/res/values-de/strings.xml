@@ -61,4 +61,18 @@
         <item quantity="one">Noch ein Tag voller Zugang</item>
         <item quantity="other">Noch %d Tage voller Zugang</item>
     </plurals>
+
+    <!-- 1.7.2: the guide shown before Android's "Display over other apps" list, and the card
+         shown when the user comes back with the switch still off. -->
+    <string name="gv_guide_title">Suche diesen Eintrag in der Liste</string>
+    <string name="gv_guide_row_desc">Quiet Dial, Schalter eingeschaltet</string>
+    <string name="gv_guide_step1">Tippe auf Liste öffnen. Android zeigt eine Liste deiner Apps.</string>
+    <string name="gv_guide_step2">Scrolle zu diesem Symbol und tippe darauf. Wenn die Liste eine Suche hat, kannst du Quiet eingeben.</string>
+    <string name="gv_guide_step3">Schalte den Schalter ein. Du kommst von selbst hierher zurück. Wenn nicht, tippe auf Zurück.</string>
+    <string name="gv_guide_open">Liste öffnen</string>
+    <string name="gv_guide_cancel">Nicht jetzt</string>
+    <string name="gv_retry_title">Der Schalter ist noch aus</string>
+    <string name="gv_retry_body">Suche in der Liste Quiet Dial, tippe darauf und schalte den Schalter ein.</string>
+    <string name="gv_retry_open">Liste noch einmal öffnen</string>
+    <string name="gv_retry_help">Nicht gefunden? Zur Hilfe</string>
 </resources>

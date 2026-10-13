@@ -12,6 +12,9 @@ object Links {
     /** 1.7.0: setup, a control that stops by itself, restoring a purchase, device limits. */
     const val HELP = "https://granularvolume.com/help.html"
 
+    /** 1.7.2: the help section for someone who cannot find the app in Android's permission list. */
+    const val HELP_FIND = "https://granularvolume.com/help.html#find"
+
     fun open(context: Context, url: String) {
         runCatching {
             context.startActivity(

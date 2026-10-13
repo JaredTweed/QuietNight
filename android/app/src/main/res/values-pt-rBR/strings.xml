@@ -61,4 +61,18 @@
         <item quantity="one">Resta um dia de acesso completo</item>
         <item quantity="other">Restam %d dias de acesso completo</item>
     </plurals>
+
+    <!-- 1.7.2: the guide shown before Android's "Display over other apps" list, and the card
+         shown when the user comes back with the switch still off. -->
+    <string name="gv_guide_title">Procure isto na lista</string>
+    <string name="gv_guide_row_desc">Quiet Dial, com a chave ativada</string>
+    <string name="gv_guide_step1">Toque em Abrir a lista. O Android mostra uma lista dos seus apps.</string>
+    <string name="gv_guide_step2">Role até este ícone e toque nele. Se a lista tiver um botão de busca, você pode digitar Quiet.</string>
+    <string name="gv_guide_step3">Ative a chave. Você volta para cá automaticamente. Se não voltar, toque em voltar.</string>
+    <string name="gv_guide_open">Abrir a lista</string>
+    <string name="gv_guide_cancel">Agora não</string>
+    <string name="gv_retry_title">A chave ainda está desativada</string>
+    <string name="gv_retry_body">Na lista, encontre o Quiet Dial, toque nele e ative a chave.</string>
+    <string name="gv_retry_open">Abrir a lista de novo</string>
+    <string name="gv_retry_help">Não encontrou? Ver ajuda</string>
 </resources>

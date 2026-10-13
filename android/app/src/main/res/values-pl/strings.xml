@@ -65,4 +65,18 @@
         <item quantity="many">Zostało %d dni pełnego dostępu</item>
         <item quantity="other">Zostało %d dnia pełnego dostępu</item>
     </plurals>
+
+    <!-- 1.7.2: the guide shown before Android's "Display over other apps" list, and the card
+         shown when the user comes back with the switch still off. -->
+    <string name="gv_guide_title">Poszukaj tego na liście</string>
+    <string name="gv_guide_row_desc">Quiet Dial, z włączonym przełącznikiem</string>
+    <string name="gv_guide_step1">Kliknij Otwórz listę. Android pokaże listę Twoich aplikacji.</string>
+    <string name="gv_guide_step2">Przewiń do tej ikony i kliknij ją. Jeśli lista ma przycisk wyszukiwania, możesz wpisać Quiet.</string>
+    <string name="gv_guide_step3">Włącz przełącznik. Wrócisz tutaj automatycznie. Jeśli nie, naciśnij Wstecz.</string>
+    <string name="gv_guide_open">Otwórz listę</string>
+    <string name="gv_guide_cancel">Nie teraz</string>
+    <string name="gv_retry_title">Przełącznik jest nadal wyłączony</string>
+    <string name="gv_retry_body">Na liście znajdź Quiet Dial, kliknij i włącz przełącznik.</string>
+    <string name="gv_retry_open">Otwórz listę ponownie</string>
+    <string name="gv_retry_help">Nie możesz znaleźć? Zobacz pomoc</string>
 </resources>

@@ -11,7 +11,9 @@
     <string name="gv_perm_audio_desc">Lets the app fine-tune output level</string>
     <string name="gv_state_granted">Granted</string>
     <string name="gv_state_needed">Needed</string>
-    <string name="gv_hint_grant_first">Tap the button, find Quiet Dial in the list (under Q), turn the switch on, then press back.</string>
+    <string name="gv_hint_grant_first">Tap the button. A short guide shows what to look for.</string>
+    <!-- 1.7.2: Android 9 and 10 open this app's own switch directly, so there is no list to explain. -->
+    <string name="gv_hint_grant_direct">Tap the button and turn the switch on. The app continues by itself.</string>
     <string name="gv_hint_ready">You\'re all set, start the control</string>
     <string name="gv_hint_consent">Agree above to continue.</string>
     <string name="gv_hint_locked">The free week has ended. Unlock above to use the dial again.</string>
@@ -20,7 +22,6 @@
     <string name="gv_perm_notif_desc_trial">Shows the control in the shade, and one note before your free week ends</string>
     <string name="gv_state_on">On</string>
     <string name="gv_state_off">Off</string>
-    <string name="gv_toast_overlay_required">Overlay access is needed to show the dial</string>
     <string name="gv_toast_grant_first">Please grant overlay access first</string>
     <string name="gv_toast_started">Volume control started</string>
     <string name="gv_battery_hint">If the control stops by itself, a battery saver on this device may be closing it.</string>
@@ -207,4 +208,18 @@
     <string name="gv_notice_ended_running_body">Your level stays as it is until the control is stopped or the device restarts. To change it, unlock the dial: one payment, once. Tap for details.</string>
     <string name="gv_notice_ended_paused_body">The quiet steps are paused. One payment, once, brings every step back exactly where you left it. Tap for details.</string>
     <string name="gv_quiet_unavailable_in_call">Call audio cannot go below the device minimum</string>
+
+    <!-- 1.7.2: the guide shown before Android's "Display over other apps" list, and the card
+         shown when the user comes back with the switch still off. -->
+    <string name="gv_guide_title">Look for this in the list</string>
+    <string name="gv_guide_row_desc">Quiet Dial, with its switch turned on</string>
+    <string name="gv_guide_step1">Tap Open the list. Android shows a list of your apps.</string>
+    <string name="gv_guide_step2">Scroll to this icon and tap it. If the list has a search button, you can type Quiet.</string>
+    <string name="gv_guide_step3">Turn the switch on. The app brings you back here by itself. If it does not, press back.</string>
+    <string name="gv_guide_open">Open the list</string>
+    <string name="gv_guide_cancel">Not now</string>
+    <string name="gv_retry_title">The switch is still off</string>
+    <string name="gv_retry_body">In the list, find Quiet Dial, tap it, and turn its switch on.</string>
+    <string name="gv_retry_open">Open the list again</string>
+    <string name="gv_retry_help">Can\'t find it? See help</string>
 </resources>
