@@ -5,7 +5,6 @@ import android.app.PendingIntent
 import android.content.*
 import android.os.Build
 import android.view.WindowManager
-import android.provider.Settings
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -41,7 +40,6 @@ class SleepPlatformTest {
             override fun stopService(intent: Intent): Boolean { stops++; return true }
         }
         SleepSettings.prefs(context).edit().clear().commit()
-        context.getSharedPreferences("quiet_night_display", Context.MODE_PRIVATE).edit().clear().commit()
         ShadowSettings.setCanDrawOverlays(true)
     }
     @Test fun alwaysStartsWithoutAskingForExactAlarms() {
@@ -77,12 +75,11 @@ class SleepPlatformTest {
         SleepScheduler.reconcile(context)
         assertEquals(1, starts)
     }
-    @Test fun screenControlsDoNotNeedOverlayWhenSystemDimmingIsAvailable() {
+    @Test fun screenControlsWaitForOverlayPermission() {
         ShadowSettings.setCanDrawOverlays(false)
         SleepSettings.write(context, SleepConfig(screen = true))
         SleepScheduler.reconcile(context)
-        // Robolectric grants settings access. Real devices without either permission stay stopped.
-        assertEquals(1, starts)
+        assertEquals(0, starts); assertEquals(1, stops)
     }
     @Test fun screenAndAudioFlagsAreIndependent() {
         SleepSettings.write(context, SleepConfig(screen = true, audio = false))
@@ -116,9 +113,9 @@ class SleepPlatformTest {
         assertFalse(SleepSettings.read(context).screen)
         assertTrue(SleepSettings.read(context).audio)
     }
-    @Test fun maximumDimUsesSystemDimLayerAndTranslucentTouchThroughWindow() {
+    @Test fun maximumDimUsesOverlayDimLayerAndTranslucentTouchThroughWindow() {
         val overlay = NightOverlay(context)
-        overlay.update(SleepConfig(screen = true, dim = 85, warmth = 100), "0 dB", {}, {})
+        overlay.update(SleepConfig(screen = true, dim = 85, warmth = 100))
         val params = ArgumentCaptor.forClass(WindowManager.LayoutParams::class.java)
         verify(windows).addView(any(android.view.View::class.java), params.capture())
         assertEquals(.85f, params.value.dimAmount)
@@ -126,9 +123,9 @@ class SleepPlatformTest {
         assertTrue(params.value.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE != 0)
         assertTrue(params.value.flags and WindowManager.LayoutParams.FLAG_DIM_BEHIND != 0)
     }
-    @Test fun systemDimmingDoesNotAlsoApplyAnAppDimLayer() {
+    @Test fun warmthWithoutDimDoesNotApplyADimLayer() {
         val overlay = NightOverlay(context)
-        overlay.update(SleepConfig(screen = true, dim = 0, warmth = 60), "0 dB", {}, {})
+        overlay.update(SleepConfig(screen = true, dim = 0, warmth = 60))
         val params = ArgumentCaptor.forClass(WindowManager.LayoutParams::class.java)
         verify(windows).addView(any(android.view.View::class.java), params.capture())
         assertEquals(0f, params.value.dimAmount)
@@ -136,8 +133,8 @@ class SleepPlatformTest {
     }
     @Test fun screenOverlayIsRemovedWhenScreenControlsAreOff() {
         val overlay = NightOverlay(context)
-        overlay.update(SleepConfig(screen = true, dim = 50, warmth = 50), "0 dB", {}, {})
-        overlay.update(SleepConfig(screen = false, dim = 50, warmth = 50), "0 dB", {}, {})
+        overlay.update(SleepConfig(screen = true, dim = 50, warmth = 50))
+        overlay.update(SleepConfig(screen = false, dim = 50, warmth = 50))
         verify(windows).removeView(any(android.view.View::class.java))
     }
     @Test fun preferencesClampRestoredOutOfRangeDimAndWarmth() {
@@ -145,15 +142,5 @@ class SleepPlatformTest {
         val config = SleepSettings.read(context)
         assertEquals(85, config.dim); assertEquals(0, config.warmth)
     }
-    @Test fun publicBrightnessAdapterRestoresSystemBrightnessAndAdaptiveMode() {
-        Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, 200)
-        Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE, 1)
-        assertTrue(ScreenDimming.canWrite(context))
-        assertEquals(ScreenDimming.Mode.SYSTEM, ScreenDimming.apply(context, 75).mode)
-        assertEquals(50, Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS))
-        assertEquals(0, Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE))
-        assertTrue(ScreenDimming.restore(context))
-        assertEquals(200, Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS))
-        assertEquals(1, Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE))
-    }
+
 }

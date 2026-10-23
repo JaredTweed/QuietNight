@@ -5,8 +5,6 @@ import android.content.*
 import android.content.pm.ServiceInfo
 import android.media.*
 import android.os.*
-import android.database.ContentObserver
-import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.granularvolume.MainActivity
@@ -19,10 +17,6 @@ import com.granularvolume.util.*
 class VolumeControlService : Service() {
     companion object {
         const val ACTION_STOP = "com.granularvolume.ACTION_STOP"
-        const val ACTION_SET_GAIN = "quietnight.SET_GAIN"
-        const val ACTION_QUIETER = "quietnight.QUIETER"
-        const val ACTION_LOUDER = "quietnight.LOUDER"
-        const val ACTION_MUTE = "quietnight.MUTE"
         const val ACTION_CALIBRATE_BLUETOOTH_FLOOR = "com.granularvolume.ACTION_CALIBRATE_BLUETOOTH_FLOOR"
         const val EXTRA_BLUETOOTH_NAME = "bluetooth_name"
         const val EXTRA_BLUETOOTH_FLOOR = "bluetooth_floor"
@@ -34,15 +28,6 @@ class VolumeControlService : Service() {
     private lateinit var overlay: NightOverlay
     private lateinit var am: AudioManager
     private val applyLater = Runnable { applyConfig() }
-    private val brightnessChanged = Runnable {
-        if (ScreenDimming.checkForUserChange(this)) applyConfig()
-    }
-    private val brightnessObserver = object : ContentObserver(handler) {
-        override fun onChange(selfChange: Boolean) {
-            handler.removeCallbacks(brightnessChanged)
-            handler.postDelayed(brightnessChanged, 120)
-        }
-    }
     private val prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
         handler.removeCallbacks(applyLater); handler.postDelayed(applyLater, 80)
     }
@@ -79,8 +64,6 @@ class VolumeControlService : Service() {
         SleepSettings.prefs(this).registerOnSharedPreferenceChangeListener(prefsListener)
         ContextCompat.registerReceiver(this, volumeReceiver, IntentFilter("android.media.VOLUME_CHANGED_ACTION"), ContextCompat.RECEIVER_NOT_EXPORTED)
         am.registerAudioDeviceCallback(devices, handler)
-        contentResolver.registerContentObserver(Settings.System.getUriFor(Settings.System.SCREEN_BRIGHTNESS), false, brightnessObserver)
-        contentResolver.registerContentObserver(Settings.System.getUriFor(Settings.System.SCREEN_BRIGHTNESS_MODE), false, brightnessObserver)
         if (Build.VERSION.SDK_INT >= 31 && modeListener != null) am.addOnModeChangedListener({ handler.post(it) }, modeListener)
         ControlLive.running = true
     }
@@ -91,32 +74,13 @@ class VolumeControlService : Service() {
             stopSelf(); return START_NOT_STICKY
         }
         if (!applyConfig()) return START_NOT_STICKY
-        val c = coordinator
-        when (intent?.action) {
-            ACTION_SET_GAIN -> {
-                val db = intent.getFloatExtra("db", 0f)
-                if (db < 0) c?.applyQuiet(db.coerceIn(-30f, 0f))
-                else c?.applyUpper((c.upperPositionCount() - 1).coerceAtLeast(0))
-            }
-            ACTION_QUIETER -> step(-1)
-            ACTION_LOUDER -> step(1)
-            ACTION_MUTE -> c?.toggleMute()
-            ACTION_CALIBRATE_BLUETOOTH_FLOOR -> intent.getStringExtra(EXTRA_BLUETOOTH_NAME)?.let {
-                c?.calibrateBluetoothFloor(it, intent.getIntExtra(EXTRA_BLUETOOTH_FLOOR, 1))
+        coordinator?.let { c ->
+            if (intent?.action == ACTION_CALIBRATE_BLUETOOTH_FLOOR) intent.getStringExtra(EXTRA_BLUETOOTH_NAME)?.let {
+                c.calibrateBluetoothFloor(it, intent.getIntExtra(EXTRA_BLUETOOTH_FLOOR, 1))
             }
         }
         publishAudio()
         return START_STICKY
-    }
-    private fun step(direction: Int) {
-        val c = coordinator ?: return
-        val state = c.uiState()
-        if (state.zoneQuiet) {
-            val db = state.quietDb + direction * 5f
-            if (db >= 0) c.applyUpper(c.upperPositionCount() - 1) else c.applyQuiet(db.coerceAtLeast(-30f))
-        } else if (direction < 0 && state.upperPos >= state.upperCount - 1) c.applyQuiet(-5f)
-        else c.applyUpper((state.upperPos - direction).coerceIn(0, state.upperCount - 1))
-        publishAudio()
     }
     private fun applyConfig(): Boolean {
         val config = SleepSettings.read(this)
@@ -128,7 +92,6 @@ class VolumeControlService : Service() {
             val a = AudioController(applicationContext)
             val v = StreamVolumeController(applicationContext)
             val c = FullRangeCoordinator(applicationContext, a, v)
-            c.volumeDownProvider = { SleepSettings.read(this).volumeDown }
             c.onQuietUnavailable = { android.widget.Toast.makeText(this, "Quiet steps cannot change cellular call audio", android.widget.Toast.LENGTH_SHORT).show() }
             audio = a; volume = v; coordinator = c
             a.onEffectState = { available, preferred ->
@@ -142,16 +105,8 @@ class VolumeControlService : Service() {
                 c.applyQuiet(a.attenuationDb.value)
             ControlLive.effect = if (!a.isEffectAvailable) ControlLive.Effect.NONE else if (a.usingPreferredStrategy) ControlLive.Effect.PREFERRED else ControlLive.Effect.FALLBACK
         } else if (!audioOn && audio != null) releaseAudio()
-        val dimming = if (screenOn) {
-            ScreenDimming.apply(this, config.dim)
-        } else {
-            val restored = ScreenDimming.restore(this)
-            ScreenDimming.Result(if (restored) ScreenDimming.Mode.OFF else ScreenDimming.Mode.RESTORE_NEEDED, 0)
-        }
         publishAudio()
-        ControlLive.dimming = dimming.mode
-        // System brightness already dims the panel. Do not also apply an app dim layer.
-        overlay.update(config.copy(screen = screenOn, dim = dimming.overlayDim), "${audio?.attenuationDb?.value?.toInt() ?: 0} dB", { step(-1) }, { step(1) })
+        overlay.update(config.copy(screen = screenOn))
         (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(802, notification(config.copy(screen = screenOn, audio = audioOn)))
         return true
     }
@@ -172,10 +127,9 @@ class VolumeControlService : Service() {
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
         SleepSettings.prefs(this).unregisterOnSharedPreferenceChangeListener(prefsListener)
-        contentResolver.unregisterContentObserver(brightnessObserver)
         runCatching { unregisterReceiver(volumeReceiver) }; am.unregisterAudioDeviceCallback(devices)
         if (Build.VERSION.SDK_INT >= 31 && modeListener != null) am.removeOnModeChangedListener(modeListener)
-        overlay.close(); ScreenDimming.restore(this); releaseAudio(); ControlLive.reset()
+        overlay.close(); releaseAudio(); ControlLive.reset()
         super.onDestroy()
     }
     override fun onBind(intent: Intent?): IBinder? = null

@@ -17,8 +17,6 @@ data class SleepConfig(
     val mode: ScheduleMode = ScheduleMode.ALWAYS,
     val start: Int = 22 * 60,
     val end: Int = 7 * 60,
-    val volumeDown: Boolean = false,
-    val bubble: Boolean = false,
     val latitude: Double? = null,
     val longitude: Double? = null
 )
@@ -40,8 +38,6 @@ object SleepSettings {
             mode = runCatching { ScheduleMode.valueOf(p.getString("mode", "ALWAYS")!!) }.getOrDefault(ScheduleMode.ALWAYS),
             start = p.getInt("start", 1320).coerceIn(0, 1439),
             end = p.getInt("end", 420).coerceIn(0, 1439),
-            volumeDown = p.getBoolean("volume_down", false),
-            bubble = p.getBoolean("bubble", false),
             latitude = p.getString("latitude", null)?.toDoubleOrNull()?.takeIf { it.isFinite() && it in -90.0..90.0 },
             longitude = p.getString("longitude", null)?.toDoubleOrNull()?.takeIf { it.isFinite() && it in -180.0..180.0 }
         )
@@ -52,8 +48,7 @@ object SleepSettings {
         remove("enabled"); remove("quiet")
         putInt("warmth", value.warmth.coerceIn(0, 100)); putInt("dim", value.dim.coerceIn(0, 85))
         putString("mode", value.mode.name); putInt("start", value.start); putInt("end", value.end)
-        putBoolean("volume_down", value.volumeDown)
-        putBoolean("bubble", value.bubble)
+        remove("volume_down"); remove("bubble")
         putString("latitude", value.latitude?.toString()); putString("longitude", value.longitude?.toString())
     }
     fun update(context: Context, change: (SleepConfig) -> SleepConfig) = write(context, change(read(context)))

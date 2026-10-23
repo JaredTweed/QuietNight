@@ -101,7 +101,7 @@ class SleepWindowDial(context: Context) : View(context) {
 /**
  * A compact readout for the quiet steps, mirroring the dial's ladder: 0 dB at the
  * device minimum down to −30 dB. It is an indicator only; the phone's volume keys
- * (or the optional floating − / + keys) are the controls.
+ * are the controls.
  */
 class QuietLevelIndicator(context: Context) : View(context) {
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)

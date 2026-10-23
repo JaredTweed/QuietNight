@@ -68,8 +68,6 @@ class FullRangeCoordinator(
      * would render a step the device is not applying.
      */
     var lockedProvider: () -> Boolean = { false }
-    /** Optional sleep-mode behavior: continue below the floor with media volume-down. */
-    var volumeDownProvider: () -> Boolean = { false }
 
     /**
      * Read-only twin of [lockedProvider], for RENDERING only.
@@ -149,7 +147,7 @@ class FullRangeCoordinator(
         _flash.value = FlashSignal(_flash.value.id + 1, target)
     }
 
-    /** True while the media stream is muted by our mute button. */
+    /** True while the media stream is muted. */
     @Volatile
     var isMuted: Boolean = false
         private set
@@ -537,11 +535,19 @@ class FullRangeCoordinator(
      */
     fun onExternalVolumeChange(stream: Int, from: Int, to: Int) {
         if (streamVol.wasSelfChange(stream, to)) return
-        if (volumeDownProvider() && stream == AudioManager.STREAM_MUSIC &&
+        if (stream == AudioManager.STREAM_MUSIC &&
             !streamVol.inCall() && !isMuted && to < from && !lockedProvider()) {
             val floor = streamVol.minAudibleIndex(stream)
             if (from <= floor && to < floor) {
-                val next = if (zoneQuiet) (audioController.attenuationDb.value - VolumeCurve.RUNG_DB)
+                val current = audioController.attenuationDb.value
+                if (zoneQuiet && current <= Prefs.ATTENUATION_MIN + 0.01f) {
+                    // The quiet range has run out. Continue into hardware mute so holding
+                    // volume-down reaches true silence instead of stopping at -30 dB.
+                    streamVol.muteMedia()
+                    notifyUi()
+                    return
+                }
+                val next = if (zoneQuiet) (current - VolumeCurve.RUNG_DB)
                     .coerceAtLeast(Prefs.ATTENUATION_MIN) else -VolumeCurve.RUNG_DB
                 // Apply the quieter gain before restoring a non-muted hardware index.
                 audioController.setAttenuation(next, AudioController.GainSource.SYSTEM)

@@ -115,41 +115,36 @@ class BluetoothFloorTest {
         assertEquals(3, volume.calibrationMaxIndex())
     }
 
-    @Test fun optionalVolumeDownEntersQuietZoneInsteadOfHardwareMute() {
-        coordinator.volumeDownProvider = { true }
+    @Test fun volumeDownAtTheFloorEntersTheQuietZoneInsteadOfHardwareMute() {
         index = 0
         coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 1, 0)
         assertEquals(listOf(1 to -5f), writes)
         assertTrue(coordinator.zoneQuiet)
     }
 
-    @Test fun optionalVolumeDownUsesCalibratedFloorAndStopsAtThirtyDb() {
+    @Test fun volumeDownUsesCalibratedFloorAndStopsAtThirtyDb() {
         calibratedQuiet(-25f)
-        coordinator.volumeDownProvider = { true }
-        repeat(3) {
-            index = 1
-            coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 2, 1)
-            assertEquals(2, index)
-            assertEquals(-30f, audio.attenuationDb.value)
-            ShadowSystemClock.advanceBy(Duration.ofSeconds(2))
-        }
+        index = 1
+        coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 2, 1)
+        assertEquals(2, index)
+        assertEquals(-30f, audio.attenuationDb.value)
     }
 
-    @Test fun disabledVolumeDownStillAllowsSystemMute() {
-        index = 0
-        coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 1, 0)
-        assertEquals(0, index); assertTrue(writes.isEmpty())
+    @Test fun anotherVolumeDownAtThirtyDbMutesMedia() {
+        calibratedQuiet(-30f)
+        index = 1
+        coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 2, 1)
+        assertEquals(0, index)
+        assertEquals(0 to -30f, writes.last())
     }
 
     @Test fun volumeDownAboveFloorDoesNotEnterQuietZoneEarly() {
-        coordinator.volumeDownProvider = { true }
         index = 1
         coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 2, 1)
         assertFalse(coordinator.zoneQuiet); assertTrue(writes.isEmpty())
     }
 
     @Test fun volumeDownDoesNotOverrideCallsOrExplicitMute() {
-        coordinator.volumeDownProvider = { true }
         `when`(am.mode).thenReturn(AudioManager.MODE_IN_CALL)
         index = 0
         coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 1, 0)
@@ -218,12 +213,13 @@ class BluetoothFloorTest {
         assertEquals(-20f, audio.attenuationDb.value)
     }
 
-    @Test fun downwardExternalChangeIsNeverFought() {
+    @Test fun volumeDownBelowCalibratedFloorContinuesTheQuietRange() {
         calibratedQuiet()
         index = 1
         coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 2, 1)
-        assertTrue(writes.isEmpty())
-        assertEquals(-20f, audio.attenuationDb.value)
+        assertEquals(listOf(2 to -25f), writes)
+        assertEquals(-25f, audio.attenuationDb.value)
+        assertEquals(2, index)
     }
 
     @Test fun calibrationLowersHardwareBeforeClearingGainAndRebuildsCurve() {

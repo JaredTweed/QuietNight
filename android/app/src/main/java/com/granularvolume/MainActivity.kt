@@ -24,7 +24,6 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import com.google.android.material.slider.Slider
-import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -47,8 +46,6 @@ class MainActivity : AppCompatActivity() {
     private var renderedAudioReady = false
     private var quietIndicator: QuietLevelIndicator? = null
     private var quietHint: TextView? = null
-    private var displayHint: TextView? = null
-    private var resumeDimming: Button? = null
     private var locationRequest: CancellationSignal? = null
     private val reconcile = Runnable { SleepScheduler.reconcile(this); refreshStatus() }
     private val refresh = object : Runnable {
@@ -61,11 +58,6 @@ class MainActivity : AppCompatActivity() {
     }
     private val timingPermission = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         SleepScheduler.reconcile(this); render()
-    }
-    private val brightnessPermission = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        SleepScheduler.reconcile(this)
-        if (SleepSettings.read(this).screen) continueScreenAccess(skipBrightness = true)
-        render()
     }
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
     private val locationPermission = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -174,26 +166,10 @@ class MainActivity : AppCompatActivity() {
         }
         parent.add(s); return s to amount
     }
-    private fun toggle(parent: LinearLayout, title: String, subtitle: String, checked: Boolean, enabled: Boolean = true, changed: (Boolean) -> Unit) {
-        val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, dp(10), 0, dp(10)) }
-        val labels = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        labels.add(text(title, 15f, bold = true)); labels.add(text(subtitle, 12f, NightColors.secondary), 3)
-        row.addView(labels, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(12) })
-        row.addView(MaterialSwitch(this).apply {
-            setShowText(false); textOn = ""; textOff = ""
-            minHeight = dp(48); switchMinWidth = dp(52)
-            thumbTintList = ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
-                intArrayOf(NightColors.amber, NightColors.lavender))
-            trackTintList = ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
-                intArrayOf(0xFF946B45.toInt(), 0xFF6A5C78.toInt()))
-            isChecked = checked; isEnabled = enabled; contentDescription = title
-            setOnCheckedChangeListener { _, value -> changed(value) }
-        }); row.alpha = if (enabled) 1f else .45f; parent.add(row, 5)
-    }
     private fun render() {
         val y = scroll.scrollY
         root.removeAllViews(); actions.removeAllViews()
-        quietIndicator = null; quietHint = null; displayHint = null; resumeDimming = null
+        quietIndicator = null; quietHint = null
         screenAction = null; audioAction = null
         val config = SleepSettings.read(this); val plan = SleepSchedule.plan(config)
         renderedAudioReady = ControlLive.audioState != null
@@ -204,25 +180,13 @@ class MainActivity : AppCompatActivity() {
         root.add(hero, 6)
         root.add(text(summary(config, plan), 13f, NightColors.secondary), 2)
         if (!PermissionHelper.canDrawOverlays(this)) {
-            val setup = card("Let the evening follow you", "Allow Quiet Night to tint and dim the screen over other apps.")
+            val setup = card("Let the evening follow you", "Allow Quiet Night to draw its tint and dimming layer over other apps.")
             setup.add(button("Allow screen overlay") { overlayPermission.launch(PermissionHelper.overlayPermissionIntent(this)) }, 12)
         }
         val light = card("Evening light", "A red-orange tint with less blue, paired with gentle dimming.")
         slider(light, "Color intensity", config.warmth, 100) { n -> persist { it.copy(warmth = n) } }
         slider(light, "Screen dim", config.dim, 85, color = NightColors.lavender) { n -> persist { it.copy(dim = n) } }
-        light.add(text("Set either slider to 0% to turn that adjustment off. Dimming is capped at 85%.", 12f, NightColors.secondary), 2)
-        displayHint = text("", 12f, NightColors.secondary)
-        light.add(displayHint!!, 9)
-        if (!ScreenDimming.canWrite(this) && (config.dim > 0 || ScreenDimming.needsRestore(this))) {
-            light.add(button("Enable system-wide dimming") {
-                brightnessPermission.launch(ScreenDimming.permissionIntent(this))
-            }, 12)
-            light.add(text("Dims Quick Settings, notifications, and the interactive lock screen. Saves your brightness and adaptive mode for restoration on stop; manual changes take precedence. Without access, only app screens are dimmed.", 12f, NightColors.secondary), 6)
-        }
-        resumeDimming = button("Resume screen dimming") {
-            ScreenDimming.resume(this); SleepScheduler.reconcile(this); render()
-        }.apply { visibility = View.GONE }
-        light.add(resumeDimming!!, 8)
+        light.add(text("Set either slider to 0% to turn that adjustment off. Dimming is capped at 85% and never changes your saved brightness.", 12f, NightColors.secondary), 2)
         val schedule = card("Your evening rhythm", "Schedule screen controls. Audio stays independent.")
         val modes = LinearLayout(this)
         for ((mode, name) in listOf(ScheduleMode.ALWAYS to "Always", ScheduleMode.SUN to "Sunset", ScheduleMode.CUSTOM to "Custom")) {
@@ -260,7 +224,6 @@ class MainActivity : AppCompatActivity() {
             schedule.add(text("Let Android start and stop screen controls at your chosen times. Audio keeps its own on/off state.", 12f, NightColors.secondary), 6)
         }
         val sound = card("Quiet sound", "Finer media steps from the Audio button, below Android’s usual minimum.")
-        toggle(sound, "Quiet steps with volume-down", "At the lowest step, keep reducing sound instead of muting. Use Mute for silence.", config.volumeDown, config.audio) { checked -> persist { it.copy(volumeDown = checked) } }
         if (config.audio) {
             val active = ControlLive.audioState != null
             val gain = if (Prefs.isLevelInQuietZone(this)) (-Prefs.getAttenuation(this)).coerceIn(0f, 30f) else 0f
@@ -268,10 +231,7 @@ class MainActivity : AppCompatActivity() {
             sound.add(quietIndicator!!, 14)
             quietHint = text("", 12f, NightColors.secondary)
             sound.add(quietHint!!, 4)
-            sound.add(button("Mute / unmute media") { command(VolumeControlService.ACTION_MUTE) }.apply {
-                isEnabled = active; alpha = if (active) 1f else .45f
-            }, 12)
-            toggle(sound, "Floating controls", "A compact − / + control over other apps.", config.bubble) { checked -> persist { it.copy(bubble = checked) } }
+            sound.add(text("Volume-down keeps stepping through the quiet range. After −30 dB another press mutes media; volume-up climbs back out.", 12f, NightColors.secondary), 8)
             bluetoothCalibration(sound, active)
         } else {
             sound.add(text("Audio controls are off. Use the Audio button in the bottom-right corner to enable Quiet Dial.", 13f, NightColors.secondary), 12)
@@ -296,34 +256,19 @@ class MainActivity : AppCompatActivity() {
     private fun refreshStatus() {
         val config = SleepSettings.read(this); val plan = SleepSchedule.plan(config)
         if (config.audio && renderedAudioReady != (ControlLive.audioState != null)) { render(); return }
-        val ready = SleepScheduler.ready(this, config)
         styleAction(screenAction, "Screen", config.screen,
             SleepScheduler.screenReady(this, config) && SleepScheduler.timingReady(this, config), plan.active)
         styleAction(audioAction, "Audio", config.audio, true, ControlLive.audioState != null)
         if (config.audio && ControlLive.audioState == null) audioAction?.text = "Audio starting"
         val gain = if (Prefs.isLevelInQuietZone(this)) (-Prefs.getAttenuation(this)).coerceIn(0f, 30f) else 0f
         quietIndicator?.setLevel(gain, config.audio && ControlLive.audioState != null, ControlLive.audioState)
-        val userControl = ScreenDimming.userHasControl(this)
-        resumeDimming?.visibility = if (userControl && config.screen && config.dim > 0) View.VISIBLE else View.GONE
-        displayHint?.text = when {
-            ScreenDimming.needsRestore(this) && !ScreenDimming.canWrite(this) -> "Allow settings access to restore your saved brightness. You can also adjust it in Quick Settings."
-            !config.screen && ScreenDimming.needsRestore(this) -> "Your saved brightness needs restoring. Check system-settings access."
-            !config.screen -> "Screen controls are off."
-            config.dim == 0 -> "Screen dimming is off."
-            userControl -> "You changed system brightness. That setting is left alone until you resume dimming or restart the screen controls."
-            !ready -> "Allow the access shown below to start screen controls."
-            !plan.active -> if (ScreenDimming.canWrite(this)) "System-wide dimming is ready for your next scheduled window." else "App-only dimming. Enable system-wide dimming to include system screens."
-            ControlLive.dimming == ScreenDimming.Mode.SYSTEM -> "System-wide dimming is on. Your previous brightness and adaptive mode return when you stop."
-            ControlLive.dimming == ScreenDimming.Mode.RESTORE_NEEDED -> "Your saved brightness needs restoring. Check system-settings access."
-            else -> "App-only dimming. System brightness is unavailable on this device or access has not been granted."
-        }
         quietHint?.text = when {
             !config.audio -> "Audio controls are off."
             !ControlLive.running -> "Waiting for the audio service…"
             ControlLive.effect == ControlLive.Effect.NONE -> "This device did not provide an audio effect. Quiet steps may not change the sound."
             StreamVolumeController(this).inCellularCall() -> "Quiet steps cannot change cellular-call audio."
             ControlLive.effect == ControlLive.Effect.FALLBACK -> "Compatibility audio mode. Attenuation support varies by device."
-            else -> "Use the phone’s volume buttons. Each press moves one quiet step; volume-up leaves the quiet range."
+            else -> "Use the phone’s volume buttons. Each press moves one quiet step; after −30 dB another volume-down press mutes, and volume-up climbs back out."
         }
     }
     private fun styleAction(action: ExtendedFloatingActionButton?, name: String, on: Boolean, ready: Boolean, active: Boolean) {
@@ -359,11 +304,8 @@ class MainActivity : AppCompatActivity() {
         }
         continueScreenAccess()
     }
-    private fun continueScreenAccess(skipBrightness: Boolean = false) {
+    private fun continueScreenAccess() {
         val config = SleepSettings.read(this)
-        if (!skipBrightness && config.dim > 0 && !ScreenDimming.canWrite(this)) {
-            brightnessPermission.launch(ScreenDimming.permissionIntent(this)); return
-        }
         if (config.mode != ScheduleMode.ALWAYS && !SleepScheduler.hasTimingPermission(this)) openTimingPermission()
     }
     private fun requestNotifications() {
@@ -459,7 +401,7 @@ class MainActivity : AppCompatActivity() {
     }
     private fun about() {
         MaterialAlertDialogBuilder(this).setTitle("A quieter kind of evening")
-            .setMessage("Quiet Night is a free, open-source fork of Granular Volume by Rzuss.\n\nEverything stays on your device. No ads, accounts, tracking, or internet permission. Location is optional and saved only to calculate sun times; there is no background location tracking.\n\nScreen and audio controls are independent. System-wide dimming uses device brightness and therefore reaches Quick Settings, notifications, and the interactive lock screen. The warm tint is limited to app screens. Some protected screens hide overlays, and always-on displays have separate brightness rules.\n\nGPL-3.0. Source: github.com/JaredTweed/granular-volume")
+            .setMessage("Quiet Night is a free, open-source fork of Granular Volume by Rzuss.\n\nEverything stays on your device. No ads, accounts, tracking, or internet permission. Location is optional and saved only to calculate sun times; there is no background location tracking.\n\nScreen and audio controls are independent. Evening light uses a touch-through display overlay, so it never changes your saved brightness or adaptive-brightness mode. Android keeps a few privileged system surfaces above application overlays, and some protected screens hide overlays.\n\nGPL-3.0. Source: github.com/JaredTweed/granular-volume")
             .setNeutralButton("Source code") { _, _ ->
                 runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/JaredTweed/granular-volume"))) }
                     .onFailure { toast("Source: github.com/JaredTweed/granular-volume") }

@@ -131,21 +131,21 @@ class HomeScreenTest {
             screenshots(activity, "quiet-night-audio", audio = true)
         } finally { controller.pause().stop().destroy() }
     }
-    @Test fun volumeDownIsASeparateOptInBelowTheAudioControl() {
+    @Test fun removedAudioTogglesAreGoneFromSettings() {
         val app = RuntimeEnvironment.getApplication()
         SleepSettings.prefs(app).edit().clear().commit()
         ShadowSettings.setCanDrawOverlays(true)
         val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
         try {
             val activity = controller.get()
-            val down = views(activity.window.decorView).filterIsInstance<MaterialSwitch>()
-                .single { it.contentDescription == "Quiet steps with volume-down" }
-            assertFalse(down.isEnabled); assertNotNull(down.thumbDrawable); assertNotNull(down.trackDrawable)
             activity.action("Audio").performClick()
-            val updated = views(activity.window.decorView).filterIsInstance<MaterialSwitch>()
-                .single { it.contentDescription == "Quiet steps with volume-down" }
-            assertTrue(updated.isEnabled); updated.performClick()
-            assertTrue(SleepSettings.read(activity).volumeDown)
+            val all = views(activity.window.decorView)
+            assertTrue(all.filterIsInstance<MaterialSwitch>().none {
+                it.contentDescription == "Quiet steps with volume-down" || it.contentDescription == "Floating controls"
+            })
+            assertTrue(all.filterIsInstance<Button>().none {
+                it.text.toString() == "Mute / unmute media" || it.text.toString() == "Floating controls"
+            })
         } finally { controller.pause().stop().destroy() }
     }
 }

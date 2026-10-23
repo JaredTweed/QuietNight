@@ -17,12 +17,11 @@ object SleepScheduler {
     fun anyEnabled(config: SleepConfig): Boolean = config.screen || config.audio
 
     /**
-     * Screen controls need either an overlay (tint and app dimming) or settings access
-     * (system-wide dimming). Audio never waits for screen access: the two controls are
-     * independent, and the optional bubble simply stays hidden until overlay access exists.
+     * Screen tint and dimming are drawn as an application overlay, so Screen needs the
+     * display-over-other-apps permission. Audio never waits for screen access.
      */
     fun screenReady(context: Context, config: SleepConfig): Boolean = !config.screen ||
-        PermissionHelper.canDrawOverlays(context) || ScreenDimming.canWrite(context)
+        PermissionHelper.canDrawOverlays(context)
 
     fun timingReady(context: Context, config: SleepConfig): Boolean =
         config.mode == ScheduleMode.ALWAYS || hasTimingPermission(context)
@@ -46,7 +45,6 @@ object SleepScheduler {
         val audioOn = audioRunnable(context, config)
         if (!screenOn && !audioOn) {
             context.stopService(Intent(context, VolumeControlService::class.java))
-            ScreenDimming.restore(context)
             return
         }
         if (config.screen && timingReady(context, config)) plan.nextChange?.let {
@@ -54,15 +52,11 @@ object SleepScheduler {
             catch (_: SecurityException) { return }
         }
         if ((screenOn && plan.active) || audioOn) {
-            // A stale system-brightness transaction must not survive when screen controls are off.
-            if (!screenOn || !plan.active) ScreenDimming.restore(context)
             try { context.startForegroundService(Intent(context, VolumeControlService::class.java)) }
             catch (_: IllegalStateException) { /* Android refused background start; next foreground open retries. */ }
             catch (_: SecurityException) { /* Permission may have just been revoked. */ }
         } else {
             context.stopService(Intent(context, VolumeControlService::class.java))
-            // Also recover a saved brightness transaction if the old process died.
-            ScreenDimming.restore(context)
         }
     }
 }
