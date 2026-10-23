@@ -17,11 +17,11 @@ object SleepScheduler {
     fun anyEnabled(config: SleepConfig): Boolean = config.screen || config.audio
 
     /**
-     * Screen tint and dimming are drawn as an application overlay, so Screen needs the
-     * display-over-other-apps permission. Audio never waits for screen access.
+     * Screen uses either the connected accessibility overlay or application-overlay access.
+     * Audio never waits for screen access.
      */
     fun screenReady(context: Context, config: SleepConfig): Boolean = !config.screen ||
-        PermissionHelper.canDrawOverlays(context)
+        (ScreenOverlayService.isConnected() || PermissionHelper.canDrawOverlays(context))
 
     fun timingReady(context: Context, config: SleepConfig): Boolean =
         config.mode == ScheduleMode.ALWAYS || hasTimingPermission(context)
@@ -36,6 +36,7 @@ object SleepScheduler {
         anyEnabled(config) && screenReady(context, config) && timingReady(context, config)
 
     fun reconcile(context: Context) {
+        LegacyBrightnessRecovery.restore(context)
         val config = SleepSettings.read(context)
         val manager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val pi = alarm(context)
@@ -49,7 +50,7 @@ object SleepScheduler {
         }
         if (config.screen && timingReady(context, config)) plan.nextChange?.let {
             try { manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, it.toEpochMilli(), pi) }
-            catch (_: SecurityException) { return }
+            catch (_: SecurityException) { /* Audio stays independent if timing access was revoked. */ }
         }
         if ((screenOn && plan.active) || audioOn) {
             try { context.startForegroundService(Intent(context, VolumeControlService::class.java)) }

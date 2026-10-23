@@ -44,6 +44,7 @@ class MainActivity : AppCompatActivity() {
     private var screenAction: ExtendedFloatingActionButton? = null
     private var audioAction: ExtendedFloatingActionButton? = null
     private var renderedAudioReady = false
+    private var renderedSystemOverlay = false
     private var quietIndicator: QuietLevelIndicator? = null
     private var quietHint: TextView? = null
     private var locationRequest: CancellationSignal? = null
@@ -173,13 +174,14 @@ class MainActivity : AppCompatActivity() {
         screenAction = null; audioAction = null
         val config = SleepSettings.read(this); val plan = SleepSchedule.plan(config)
         renderedAudioReady = ControlLive.audioState != null
+        renderedSystemOverlay = ScreenOverlayService.isConnected()
         root.add(text("QUIET NIGHT", 12f, NightColors.lavender, true).apply { letterSpacing = .22f })
         val hero = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         hero.addView(text("Make room\nfor rest.", 36f).apply { typeface = Typeface.create("sans-serif", Typeface.NORMAL) }, LinearLayout.LayoutParams(0, -2, 1f))
         hero.addView(MoonView(this).apply { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }, LinearLayout.LayoutParams(dp(108), dp(134)))
         root.add(hero, 6)
         root.add(text(summary(config, plan), 13f, NightColors.secondary), 2)
-        if (!PermissionHelper.canDrawOverlays(this)) {
+        if (!ScreenOverlayService.isConnected() && !PermissionHelper.canDrawOverlays(this)) {
             val setup = card("Let the evening follow you", "Allow Quiet Night to draw its tint and dimming layer over other apps.")
             setup.add(button("Allow screen overlay") { overlayPermission.launch(PermissionHelper.overlayPermissionIntent(this)) }, 12)
         }
@@ -187,6 +189,23 @@ class MainActivity : AppCompatActivity() {
         slider(light, "Color intensity", config.warmth, 100) { n -> persist { it.copy(warmth = n) } }
         slider(light, "Screen dim", config.dim, 85, color = NightColors.lavender) { n -> persist { it.copy(dim = n) } }
         light.add(text("Set either slider to 0% to turn that adjustment off. Dimming is capped at 85% and never changes your saved brightness.", 12f, NightColors.secondary), 2)
+        if (!ScreenOverlayService.isConnected()) {
+            light.add(button("Dim notifications & Quick Settings") {
+                MaterialAlertDialogBuilder(this).setTitle("Dim the whole screen")
+                    .setMessage("Enable Quiet Night screen dimming in Accessibility settings to place the filter above notifications and Quick Settings. It draws a touch-through filter only: it does not read screen content, observe your actions, or control gestures. System brightness stays unchanged.")
+                    .setNegativeButton("Cancel", null)
+                    .setPositiveButton("Open settings") { _, _ ->
+                        timingPermission.launch(ScreenOverlayService.settingsIntent())
+                    }.show()
+            }, 12)
+            light.add(text("Without this access, the filter covers app screens only.", 12f, NightColors.secondary), 6)
+        } else light.add(text("Full-screen overlay includes notifications and Quick Settings. System brightness stays unchanged.", 12f, NightColors.secondary), 9)
+        if (LegacyBrightnessRecovery.pending(this)) {
+            light.add(text("An earlier version saved a brightness setting that still needs restoring. This is separate from overlay dimming.", 12f, NightColors.secondary), 9)
+            light.add(button("Restore previous brightness") {
+                timingPermission.launch(LegacyBrightnessRecovery.permissionIntent(this))
+            }, 6)
+        }
         val schedule = card("Your evening rhythm", "Schedule screen controls. Audio stays independent.")
         val modes = LinearLayout(this)
         for ((mode, name) in listOf(ScheduleMode.ALWAYS to "Always", ScheduleMode.SUN to "Sunset", ScheduleMode.CUSTOM to "Custom")) {
@@ -213,7 +232,8 @@ class MainActivity : AppCompatActivity() {
                 times.addView(endButton, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(6) })
                 schedule.add(times, 4)
                 dial.onChange = { start, end ->
-                    startButton.text = "START\n${formatTime(start)}"; endButton.text = "END\n${formatTime(end)}"
+                    startButton.text = "START\n${formatTime(start)}"
+                    endButton.text = "END\n${formatTime(end)}"
                     persist { it.copy(start = start, end = end) }
                 }
                 schedule.add(text("Drag either handle, or tap a time for precise control. Overnight schedules are supported.", 12f, NightColors.secondary), 12)
@@ -231,7 +251,6 @@ class MainActivity : AppCompatActivity() {
             sound.add(quietIndicator!!, 14)
             quietHint = text("", 12f, NightColors.secondary)
             sound.add(quietHint!!, 4)
-            sound.add(text("Volume-down keeps stepping through the quiet range. After −30 dB another press mutes media; volume-up climbs back out.", 12f, NightColors.secondary), 8)
             bluetoothCalibration(sound, active)
         } else {
             sound.add(text("Audio controls are off. Use the Audio button in the bottom-right corner to enable Quiet Dial.", 13f, NightColors.secondary), 12)
@@ -255,7 +274,8 @@ class MainActivity : AppCompatActivity() {
     }
     private fun refreshStatus() {
         val config = SleepSettings.read(this); val plan = SleepSchedule.plan(config)
-        if (config.audio && renderedAudioReady != (ControlLive.audioState != null)) { render(); return }
+        if (renderedSystemOverlay != ScreenOverlayService.isConnected() ||
+            (config.audio && renderedAudioReady != (ControlLive.audioState != null))) { render(); return }
         styleAction(screenAction, "Screen", config.screen,
             SleepScheduler.screenReady(this, config) && SleepScheduler.timingReady(this, config), plan.active)
         styleAction(audioAction, "Audio", config.audio, true, ControlLive.audioState != null)
@@ -299,7 +319,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
     private fun requestScreenAccess() {
-        if (!PermissionHelper.canDrawOverlays(this)) {
+        if (!ScreenOverlayService.isConnected() && !PermissionHelper.canDrawOverlays(this)) {
             overlayPermission.launch(PermissionHelper.overlayPermissionIntent(this)); return
         }
         continueScreenAccess()
@@ -401,7 +421,7 @@ class MainActivity : AppCompatActivity() {
     }
     private fun about() {
         MaterialAlertDialogBuilder(this).setTitle("A quieter kind of evening")
-            .setMessage("Quiet Night is a free, open-source fork of Granular Volume by Rzuss.\n\nEverything stays on your device. No ads, accounts, tracking, or internet permission. Location is optional and saved only to calculate sun times; there is no background location tracking.\n\nScreen and audio controls are independent. Evening light uses a touch-through display overlay, so it never changes your saved brightness or adaptive-brightness mode. Android keeps a few privileged system surfaces above application overlays, and some protected screens hide overlays.\n\nGPL-3.0. Source: github.com/JaredTweed/granular-volume")
+            .setMessage("Quiet Night is a free, open-source fork of Granular Volume by Rzuss.\n\nEverything stays on your device. No ads, accounts, tracking, or internet permission. Location is optional and saved only to calculate sun times; there is no background location tracking.\n\nScreen and audio controls are independent. Evening light uses a touch-through display overlay, so it never changes your saved brightness or adaptive-brightness mode. Enable accessibility screen dimming to cover notifications and Quick Settings. This service only draws the filter; it does not read screen content or control gestures. Some protected screens and always-on displays may still hide filters.\n\nGPL-3.0. Source: github.com/JaredTweed/granular-volume")
             .setNeutralButton("Source code") { _, _ ->
                 runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/JaredTweed/granular-volume"))) }
                     .onFailure { toast("Source: github.com/JaredTweed/granular-volume") }

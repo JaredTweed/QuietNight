@@ -106,7 +106,8 @@ class VolumeControlService : Service() {
             ControlLive.effect = if (!a.isEffectAvailable) ControlLive.Effect.NONE else if (a.usingPreferredStrategy) ControlLive.Effect.PREFERRED else ControlLive.Effect.FALLBACK
         } else if (!audioOn && audio != null) releaseAudio()
         publishAudio()
-        overlay.update(config.copy(screen = screenOn))
+        val display = config.copy(screen = screenOn)
+        if (ScreenOverlayService.update(display)) overlay.close() else overlay.update(display)
         (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(802, notification(config.copy(screen = screenOn, audio = audioOn)))
         return true
     }
@@ -129,7 +130,7 @@ class VolumeControlService : Service() {
         SleepSettings.prefs(this).unregisterOnSharedPreferenceChangeListener(prefsListener)
         runCatching { unregisterReceiver(volumeReceiver) }; am.unregisterAudioDeviceCallback(devices)
         if (Build.VERSION.SDK_INT >= 31 && modeListener != null) am.removeOnModeChangedListener(modeListener)
-        overlay.close(); releaseAudio(); ControlLive.reset()
+        overlay.close(); ScreenOverlayService.hide(); releaseAudio(); ControlLive.reset()
         super.onDestroy()
     }
     override fun onBind(intent: Intent?): IBinder? = null

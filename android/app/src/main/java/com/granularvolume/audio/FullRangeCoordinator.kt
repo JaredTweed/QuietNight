@@ -531,10 +531,10 @@ class FullRangeCoordinator(
 
     /**
      * An external volume change was observed on [stream] (old [from] → new [to]).
-     * Applies the locked policy. Never raises hardware volume.
+     * Only explicit key actions may restore the audible floor; other corrections only lower volume.
      */
     fun onExternalVolumeChange(stream: Int, from: Int, to: Int) {
-        if (streamVol.wasSelfChange(stream, to)) return
+        if (streamVol.wasSelfChange(stream, from, to)) return
         if (stream == AudioManager.STREAM_MUSIC &&
             !streamVol.inCall() && !isMuted && to < from && !lockedProvider()) {
             val floor = streamVol.minAudibleIndex(stream)
@@ -591,6 +591,13 @@ class FullRangeCoordinator(
 
         val floor = streamVol.minAudibleIndex(stream)
         val current = audioController.attenuationDb.value
+        if (from == 0 && to > 0 && to < floor && to - from == 1 && !streamVol.inCall()) {
+            // Explicit volume-up after mute: recover the headset's first audible step
+            // at the existing quiet gain, never the old pre-mute loudness.
+            streamVol.setIndex(stream, floor)
+            notifyUi()
+            return
+        }
         if (floor > maxOf(1, am.getStreamMinVolume(stream)) && to <= floor) {
             // Crossing a headset's silent index into its calibrated floor is already
             // a hardware increase. Do not also ease the gain by 5 dB.

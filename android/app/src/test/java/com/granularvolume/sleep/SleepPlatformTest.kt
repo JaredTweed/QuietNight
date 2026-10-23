@@ -28,7 +28,9 @@ class SleepPlatformTest {
     private var stops = 0
     @Before fun setup() {
         alarms = mock(AlarmManager::class.java); windows = mock(WindowManager::class.java)
-        `when`(alarms.canScheduleExactAlarms()).thenReturn(true)
+        val actualWindows = RuntimeEnvironment.getApplication().getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        `when`(windows.defaultDisplay).thenReturn(actualWindows.defaultDisplay)
+        if (Build.VERSION.SDK_INT >= 31) `when`(alarms.canScheduleExactAlarms()).thenReturn(true)
         context = object : ContextWrapper(RuntimeEnvironment.getApplication()) {
             override fun getApplicationContext(): Context = this
             override fun getSystemService(name: String): Any? = when (name) {
@@ -98,6 +100,16 @@ class SleepPlatformTest {
         SleepScheduler.reconcile(context)
         assertEquals(1, starts)
     }
+    @Test fun exactAlarmRevocationDuringSchedulingCannotPreventIndependentAudioStart() {
+        doThrow(SecurityException("revoked")).`when`(alarms)
+            .setExactAndAllowWhileIdle(anyInt(), anyLong(), any(PendingIntent::class.java))
+        val minute = LocalTime.now().hour * 60 + LocalTime.now().minute
+        SleepSettings.write(context, SleepConfig(screen = true, audio = true, mode = ScheduleMode.CUSTOM,
+            start = (minute + 60) % 1440, end = (minute + 120) % 1440))
+        SleepScheduler.reconcile(context)
+        assertEquals(1, starts)
+    }
+
     @Test fun screenSettingsCannotOverwriteBluetoothFloor() {
         com.granularvolume.util.Prefs.setBluetoothFloor(context, "BX27", 2)
         SleepSettings.write(context, SleepConfig(screen = true, audio = true))
@@ -123,6 +135,64 @@ class SleepPlatformTest {
         assertTrue(params.value.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE != 0)
         assertTrue(params.value.flags and WindowManager.LayoutParams.FLAG_DIM_BEHIND != 0)
     }
+    @Test @Config(sdk = [28, 33])
+    fun trustedOverlayDimsSystemUiWithAnActualBlackFilterAndLeavesBrightnessAlone() {
+        android.provider.Settings.System.putInt(context.contentResolver, "screen_brightness", 123)
+        android.provider.Settings.System.putInt(context.contentResolver, "screen_brightness_mode", 1)
+        ShadowSettings.setCanDrawOverlays(false)
+        NightOverlay(context, systemUi = true).update(SleepConfig(screen = true, dim = 85, warmth = 0))
+        val params = ArgumentCaptor.forClass(WindowManager.LayoutParams::class.java)
+        val view = ArgumentCaptor.forClass(android.view.View::class.java)
+        verify(windows).addView(view.capture(), params.capture())
+        assertEquals(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, params.value.type)
+        assertTrue(params.value.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE != 0)
+        if (Build.VERSION.SDK_INT >= 30) assertEquals(0, params.value.fitInsetsTypes)
+        val color = (view.value.background as android.graphics.drawable.ColorDrawable).color
+        assertEquals(217, android.graphics.Color.alpha(color))
+        assertEquals(0, android.graphics.Color.red(color))
+        assertEquals(123, android.provider.Settings.System.getInt(context.contentResolver, "screen_brightness"))
+        assertEquals(1, android.provider.Settings.System.getInt(context.contentResolver, "screen_brightness_mode"))
+    }
+    @Test fun accessibilityDisconnectReleasesOwnershipAndRequiresFallbackAccess() {
+        ShadowSettings.setCanDrawOverlays(false)
+        val controller = org.robolectric.Robolectric.buildService(ScreenOverlayService::class.java).create()
+        try {
+            val service = controller.get()
+            val connect = ScreenOverlayService::class.java.getDeclaredMethod("onServiceConnected")
+            connect.isAccessible = true
+            connect.invoke(service)
+            assertTrue(ScreenOverlayService.isConnected())
+            assertTrue(SleepScheduler.screenReady(context, SleepConfig(screen = true)))
+            assertTrue(ScreenOverlayService.update(SleepConfig(screen = false)))
+            service.onUnbind(null)
+            assertFalse(ScreenOverlayService.isConnected())
+            assertFalse(SleepScheduler.screenReady(context, SleepConfig(screen = true)))
+        } finally { controller.destroy() }
+    }
+
+    @Test fun accessibilityFilterRequestsNoContentEventsGesturesOrKeyFiltering() {
+        val parser = context.resources.getXml(com.granularvolume.R.xml.screen_overlay_service)
+        parser.use {
+            while (it.next() != org.xmlpull.v1.XmlPullParser.START_TAG) { }
+            val ns = "http://schemas.android.com/apk/res/android"
+            assertEquals("false", it.getAttributeValue(ns, "canRetrieveWindowContent"))
+            assertNull(it.getAttributeValue(ns, "accessibilityEventTypes"))
+            assertNull(it.getAttributeValue(ns, "accessibilityFlags"))
+            assertNull(it.getAttributeValue(ns, "canPerformGestures"))
+            assertNull(it.getAttributeValue(ns, "canRequestFilterKeyEvents"))
+        }
+    }
+
+    @Test fun trustedFilterComposesTintUnderDimmingAndZeroRemovesBoth() {
+        val dimOnly = NightOverlay.filterColor(85, 0)
+        assertEquals(0, android.graphics.Color.red(dimOnly))
+        assertEquals(android.graphics.Color.TRANSPARENT, NightOverlay.filterColor(0, 0))
+        val warm = NightOverlay.filterColor(0, 100)
+        val dimWarm = NightOverlay.filterColor(85, 100)
+        assertTrue(android.graphics.Color.red(dimWarm) < android.graphics.Color.red(warm))
+        assertTrue(android.graphics.Color.alpha(dimWarm) > android.graphics.Color.alpha(warm))
+    }
+
     @Test fun warmthWithoutDimDoesNotApplyADimLayer() {
         val overlay = NightOverlay(context)
         overlay.update(SleepConfig(screen = true, dim = 0, warmth = 60))

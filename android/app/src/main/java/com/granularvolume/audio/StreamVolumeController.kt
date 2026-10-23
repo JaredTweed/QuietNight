@@ -31,9 +31,9 @@ class StreamVolumeController(context: Context) {
     private val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val appContext = context.applicationContext
 
-    /** Our last write per stream: the value we wrote and when. */
-    private data class SelfWrite(val index: Int, val atMs: Long)
-    private val lastSelfWrite = HashMap<Int, SelfWrite>()
+    /** Pending transitions, consumed individually when Android acknowledges our writes. */
+    private data class SelfWrite(val from: Int, val to: Int, val atMs: Long)
+    private val pendingWrites = HashMap<Int, MutableList<SelfWrite>>()
 
     /**
      * Stream the dial drives. MEDIA in every ordinary state — matching AOSP's no-playback
@@ -120,8 +120,7 @@ class StreamVolumeController(context: Context) {
 
     /**
      * Explicit user-initiated set (slider touch). May move in either direction.
-     * Clamped to [minAudibleIndex, max] — the slider never produces hardware mute; true mute
-     * is only the mute button's job.
+     * Clamped to [minAudibleIndex, max]; [muteMedia] is the separate path to silence.
      */
     fun setIndex(stream: Int, index: Int) {
         val clamped = index.coerceIn(minAudibleIndex(stream), maxIndex(stream))
@@ -141,24 +140,20 @@ class StreamVolumeController(context: Context) {
         return true
     }
 
-    /**
-     * True if the volume change observed on [stream] landing at [observedIndex] was our own.
-     *
-     * Matches the VALUE we wrote as well as the time. A time-only window raced with system
-     * broadcast delivery: a late broadcast for our own write was read as an external change,
-     * which fired the absorb policy and moved the dial by itself. Requiring the value to match
-     * removes that race, so the window can be generous without ever eating a real user press
-     * (a real press lands on a different index than the one we just wrote).
-     */
-    fun wasSelfChange(stream: Int, observedIndex: Int): Boolean {
-        val w = lastSelfWrite[stream] ?: return false
-        return w.index == observedIndex &&
-                SystemClock.elapsedRealtime() - w.atMs <= SELF_CHANGE_WINDOW_MS
+    /** Consume one matching write acknowledgement, without swallowing a later real key press. */
+    fun wasSelfChange(stream: Int, from: Int, to: Int): Boolean {
+        val pending = pendingWrites[stream] ?: return false
+        val now = SystemClock.elapsedRealtime()
+        pending.removeAll { now - it.atMs > SELF_CHANGE_WINDOW_MS }
+        val match = pending.indexOfFirst { it.from == from && it.to == to }
+        if (match < 0) return false
+        pending.removeAt(match)
+        return true
     }
 
     /**
      * True media mute (index 0). Deliberately bypasses the minAudible clamp — this is the ONE
-     * sanctioned path to hardware silence, reachable only from the explicit mute button.
+     * path to hardware silence, used once volume-down exhausts the quiet range.
      * Media-stream mute needs no DND permission (that rule applies to the ring stream).
      * @return the index that was live before muting, for exact restore
      */
@@ -174,11 +169,16 @@ class StreamVolumeController(context: Context) {
     }
 
     private fun write(stream: Int, index: Int) {
-        lastSelfWrite[stream] = SelfWrite(index, SystemClock.elapsedRealtime())
+        val previous = index(stream)
+        val write = SelfWrite(previous, index, SystemClock.elapsedRealtime())
+        val pending = pendingWrites.getOrPut(stream) { mutableListOf() }
+        pending.removeAll { write.atMs - it.atMs > SELF_CHANGE_WINDOW_MS }
+        if (previous != index) pending.add(write)
         try {
             // FLAG_0: no system volume UI — the overlay IS the UI.
             am.setStreamVolume(stream, index, 0)
         } catch (e: SecurityException) {
+            pending.remove(write)
             // Defensive: media-stream writes need no special permission, but an OEM surprise
             // here must degrade to "no hardware write", never crash the service.
             Log.e(tag, "setStreamVolume rejected: ${e.message}")
@@ -187,7 +187,7 @@ class StreamVolumeController(context: Context) {
     }
 
     companion object {
-        // Generous, because the value must also match — see wasSelfChange.
+        // Acknowledgements must match both endpoints and are consumed once.
         private const val SELF_CHANGE_WINDOW_MS = 1_500L
     }
 }

@@ -105,7 +105,7 @@ class HomeScreenTest {
             val indicator = views(activity.window.decorView).filterIsInstance<QuietLevelIndicator>().single()
             views(activity.window.decorView).filterIsInstance<ScrollView>().single()
                 .scrollTo(0, (indicator.parent as View).top)
-            screenshots(activity, "quiet-night-audio")
+            screenshots(activity, "quiet-night-independent-controls")
             activity.action("Screen").performClick()
             config = SleepSettings.read(activity)
             assertFalse(config.screen); assertTrue(config.audio)

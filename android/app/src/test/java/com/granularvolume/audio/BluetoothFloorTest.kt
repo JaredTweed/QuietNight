@@ -138,6 +138,56 @@ class BluetoothFloorTest {
         assertEquals(0 to -30f, writes.last())
     }
 
+    @Test fun heldKeysReachMuteAndClimbOutWithoutWaitingForSelfWriteTimeout() {
+        for (floor in listOf(1, 2, 5)) {
+            setup()
+            if (floor > 1) {
+                route(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP)
+                Prefs.setBluetoothFloor(context, "Headset", floor)
+            }
+            index = floor
+            fun press(direction: Int) {
+                val from = index
+                index = (index + direction).coerceIn(0, 15)
+                val to = index
+                val before = writes.size
+                coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, from, to)
+                // Deliver our own correction broadcast too, just as AudioService does.
+                var previous = to
+                writes.drop(before).forEach { (written, _) ->
+                    coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, previous, written)
+                    previous = written
+                }
+            }
+            repeat(6) { n ->
+                press(-1)
+                assertEquals(-5f * (n + 1), audio.attenuationDb.value)
+                assertEquals(floor, index)
+            }
+            press(-1)
+            assertEquals(0, index)
+            press(1)
+            assertEquals(floor, index)
+            // At a calibrated floor the first up restores audibility at the same gain.
+            assertEquals(if (floor == 1) -25f else -30f, audio.attenuationDb.value)
+            repeat(if (floor == 1) 5 else 6) { press(1) }
+            assertFalse(coordinator.zoneQuiet)
+            assertEquals(0f, audio.attenuationDb.value)
+            press(1)
+            assertEquals(floor + 1, index)
+        }
+    }
+
+    @Test fun selfWritesAreMatchedByTransitionAndConsumedOnlyOnce() {
+        index = 0
+        volume.setIndex(AudioManager.STREAM_MUSIC, 2)
+        assertFalse(volume.wasSelfChange(AudioManager.STREAM_MUSIC, 1, 2))
+        assertTrue(volume.wasSelfChange(AudioManager.STREAM_MUSIC, 0, 2))
+        assertFalse(volume.wasSelfChange(AudioManager.STREAM_MUSIC, 0, 2))
+        volume.setIndex(AudioManager.STREAM_MUSIC, 2)
+        assertFalse(volume.wasSelfChange(AudioManager.STREAM_MUSIC, 1, 2))
+    }
+
     @Test fun volumeDownAboveFloorDoesNotEnterQuietZoneEarly() {
         index = 1
         coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 2, 1)
