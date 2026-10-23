@@ -7,12 +7,13 @@ import java.time.*
 class SleepScheduleTest {
     private val zone = ZoneId.of("America/Winnipeg")
     private fun at(value: String) = LocalDateTime.parse(value).atZone(zone).toInstant()
-    private val night = SleepConfig(enabled = true, mode = ScheduleMode.CUSTOM, start = 22 * 60, end = 7 * 60)
-    @Test fun pausedAlwaysHasNoEffectsOrAlarms() {
-        assertEquals(SleepPlan(false, null), SleepSchedule.plan(night.copy(enabled = false), at("2026-10-23T23:00"), zone))
+    private val night = SleepConfig(mode = ScheduleMode.CUSTOM, start = 22 * 60, end = 7 * 60)
+    @Test fun scheduleIsPureAndActivationIsDecidedByTheScheduler() {
+        assertTrue(SleepSchedule.plan(night, at("2026-10-23T23:00"), zone).active)
+        assertTrue(SleepSchedule.plan(night.copy(screen = false, audio = false), at("2026-10-23T23:00"), zone).active)
     }
     @Test fun alwaysDoesNotDependOnClockOrLocation() {
-        assertEquals(SleepPlan(true, null), SleepSchedule.plan(SleepConfig(enabled = true), at("2026-10-23T14:00"), zone))
+        assertEquals(SleepPlan(true, null), SleepSchedule.plan(SleepConfig(), at("2026-10-23T14:00"), zone))
     }
     @Test fun overnightIncludesEveningAndFollowingMorning() {
         assertTrue(SleepSchedule.plan(night, at("2026-10-23T23:00"), zone).active)

@@ -97,3 +97,70 @@ class SleepWindowDial(context: Context) : View(context) {
     }
     override fun performClick(): Boolean { super.performClick(); return true }
 }
+
+/**
+ * A compact readout for the quiet steps, mirroring the dial's ladder: 0 dB at the
+ * device minimum down to −30 dB. It is an indicator only; the phone's volume keys
+ * (or the optional floating − / + keys) are the controls.
+ */
+class QuietLevelIndicator(context: Context) : View(context) {
+    private val p = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val d = resources.displayMetrics.density
+    private var levelDb = 0f
+    private var running = false
+    private var readout = "off"
+    init { contentDescription = "Quiet Dial, off"; importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES }
+
+    fun setLevel(db: Float, active: Boolean, state: com.granularvolume.audio.FullRangeCoordinator.UiState? = null) {
+        val nextDb = db.coerceIn(0f, 30f)
+        val nextReadout = when {
+            !active -> "off"
+            state?.muted == true || state?.percent == 0 -> "muted"
+            state != null && !state.zoneQuiet -> "${state.percent}%"
+            nextDb < 1f -> "ready"
+            else -> "−${nextDb.roundToInt()} dB"
+        }
+        if (nextDb == levelDb && active == running && nextReadout == readout) return
+        levelDb = nextDb; running = active; readout = nextReadout
+        contentDescription = "Quiet Dial, $readout"
+        invalidate()
+    }
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), (84 * d).roundToInt())
+    }
+
+    override fun onDraw(c: Canvas) {
+        val left = 2 * d
+        val right = width - 2 * d
+        val top = 8 * d
+        p.typeface = Typeface.create("sans-serif", Typeface.BOLD)
+        p.textSize = 10 * resources.displayMetrics.scaledDensity
+        p.textAlign = Paint.Align.LEFT
+        p.color = NightColors.secondary
+        c.drawText("QUIET DIAL", left, top + 8 * d, p)
+        p.textAlign = Paint.Align.RIGHT
+        p.textSize = 17 * resources.displayMetrics.scaledDensity
+        p.color = if (running) NightColors.lavender else NightColors.secondary
+        c.drawText(readout, right, top + 9 * d, p)
+
+        val steps = 6
+        val gap = 5 * d
+        val barTop = top + 22 * d
+        val barHeight = 13 * d
+        val barWidth = (right - left - gap * (steps - 1)) / steps
+        val filled = if (running) (levelDb / 5f).roundToInt().coerceIn(0, steps) else 0
+        p.textAlign = Paint.Align.LEFT
+        for (i in 0 until steps) {
+            val x = left + i * (barWidth + gap)
+            p.color = if (i < filled) NightColors.amber else NightColors.stroke
+            c.drawRoundRect(x, barTop, x + barWidth, barTop + barHeight, 4 * d, 4 * d, p)
+        }
+        p.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+        p.textSize = 11 * resources.displayMetrics.scaledDensity
+        p.color = NightColors.secondary
+        c.drawText("0 dB", left, barTop + barHeight + 17 * d, p)
+        p.textAlign = Paint.Align.RIGHT
+        c.drawText("−30 dB", right, barTop + barHeight + 17 * d, p)
+    }
+}

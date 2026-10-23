@@ -1,24 +1,36 @@
 package com.granularvolume.sleep
 
 import android.content.Context
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
+import android.provider.Settings
 import android.view.*
 import android.widget.*
-import android.content.Intent
 import com.granularvolume.MainActivity
 
-/** A translucent, non-interactive tint plus Android's dim layer. Never intercepts app touches. */
+/**
+ * A translucent, non-interactive tint plus Android's dim layer for ordinary apps.
+ *
+ * System-wide dimming is handled separately by [ScreenDimming], which changes the
+ * device brightness and therefore also covers Quick Settings, notifications and the
+ * keyguard. This window is only the warm tint and the fallback app dim layer.
+ * It never intercepts app touches.
+ */
 class NightOverlay(private val context: Context) {
     private val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private var filter: View? = null
     private var bubble: View? = null
     private fun dp(x: Int) = (x * context.resources.displayMetrics.density).toInt()
+    private val canOverlay: Boolean get() = Settings.canDrawOverlays(context)
+
     fun update(config: SleepConfig, quietLabel: String, onDown: () -> Unit, onUp: () -> Unit) {
-        if (config.dim == 0 && config.warmth == 0) {
-            filter?.let { runCatching { wm.removeView(it) } }; filter = null
-        } else {
+        if (!canOverlay) {
+            removeFilter(); removeBubble(); return
+        }
+        val wantsFilter = config.screen && (config.dim > 0 || config.warmth > 0)
+        if (!wantsFilter) removeFilter() else {
             val view = filter ?: View(context).also { filter = it }
             view.setBackgroundColor(if (config.warmth == 0) Color.TRANSPARENT else Color.rgb(255, 67, 15))
             val lp = WindowManager.LayoutParams(-1, -1, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
@@ -30,14 +42,12 @@ class NightOverlay(private val context: Context) {
                 // Dim via the system dim layer, not an opaque touch-blocking overlay.
                 // Even at maximum warmth this window stays well below Android's 0.8 touch limit.
                 alpha = if (config.warmth == 0) 0.01f else
-                    (config.warmth / 100f * 0.5f * (1 - dimAmount)).coerceAtMost(0.5f)
+                    (config.warmth / 100f * 0.55f).coerceAtMost(0.55f)
                 title = "Quiet Night screen filter"
             }
             if (view.parent == null) wm.addView(view, lp) else wm.updateViewLayout(view, lp)
         }
-        if (!config.quiet || !config.bubble) {
-            bubble?.let { runCatching { wm.removeView(it) } }; bubble = null
-        } else if (bubble == null) {
+        if (!config.audio || !config.bubble) removeBubble() else if (bubble == null) {
             val row = LinearLayout(context).apply {
                 gravity = Gravity.CENTER; setPadding(dp(4), dp(2), dp(4), dp(2))
                 background = GradientDrawable().apply { setColor(Color.rgb(38, 30, 44)); cornerRadius = dp(24).toFloat() }
@@ -62,8 +72,12 @@ class NightOverlay(private val context: Context) {
         }
         bubble?.contentDescription = "Quiet Dial, $quietLabel"
     }
-    fun close() {
+
+    private fun removeFilter() {
         filter?.let { runCatching { wm.removeView(it) } }; filter = null
+    }
+    private fun removeBubble() {
         bubble?.let { runCatching { wm.removeView(it) } }; bubble = null
     }
+    fun close() { removeFilter(); removeBubble() }
 }

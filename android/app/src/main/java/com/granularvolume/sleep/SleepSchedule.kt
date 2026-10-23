@@ -35,7 +35,6 @@ data class SleepPlan(val active: Boolean, val nextChange: Instant?, val message:
 
 object SleepSchedule {
     fun plan(config: SleepConfig, now: Instant = Instant.now(), zone: ZoneId = ZoneId.systemDefault()): SleepPlan {
-        if (!config.enabled) return SleepPlan(false, null)
         if (config.mode == ScheduleMode.ALWAYS) return SleepPlan(true, null)
         val date = now.atZone(zone).toLocalDate()
         if (config.mode == ScheduleMode.SUN && (config.latitude == null || config.longitude == null)) {

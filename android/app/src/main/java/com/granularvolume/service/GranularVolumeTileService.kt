@@ -14,20 +14,27 @@ class GranularVolumeTileService : TileService() {
     @android.annotation.SuppressLint("StartActivityAndCollapseDeprecated")
     override fun onClick() {
         super.onClick()
-        if (!SleepScheduler.ready(this)) {
+        val config = SleepSettings.read(this)
+        val next = config.copy(screen = !config.screen)
+        if (next.screen && !SleepScheduler.ready(this, next)) {
             val intent = Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             if (Build.VERSION.SDK_INT >= 34) startActivityAndCollapse(PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE))
             else { @Suppress("DEPRECATION") startActivityAndCollapse(intent) }
             return
         }
-        SleepSettings.update(this) { it.copy(enabled = !it.enabled) }
+        SleepSettings.write(this, next)
         SleepScheduler.reconcile(this); updateTile()
     }
     private fun updateTile() {
         val config = SleepSettings.read(this)
         qsTile?.apply {
-            label = "Quiet Night"; state = if (config.enabled) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
-            if (Build.VERSION.SDK_INT >= 29) subtitle = if (SleepSchedule.plan(config).active) "Wind-down on" else if (config.enabled) "Scheduled" else "Paused"
+            label = "Quiet Night screen"
+            state = if (config.screen) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
+            if (Build.VERSION.SDK_INT >= 29) subtitle = when {
+                !config.screen -> "Off"
+                SleepSchedule.plan(config).active -> "On"
+                else -> "Scheduled"
+            }
             updateTile()
         }
     }

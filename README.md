@@ -16,23 +16,24 @@ Quiet Night is an independent GPL-3.0 fork of [Granular Volume / Quiet Dial](htt
 - **Always:** keep the selected settings active until paused.
 - **Sunset → sunrise:** calculate daily sun times offline from a saved location. Use optional foreground location access or enter coordinates manually. No background location tracking, geocoding, or internet access.
 - **Custom:** drag either handle on the 24-hour circular slider, including overnight windows. Start and End buttons offer precise, accessible time entry.
-- **Quiet Dial:** independently enable the media-attenuation engine, with 0–30 dB of extra attenuation and optional compact floating controls.
+- **Audio button:** independently enable the media-attenuation engine. A read-only Quiet Dial indicator shows media mute, normal volume, or the 0–30 dB quiet range; use the phone’s volume keys to change it. There is no attenuation slider.
+- **Screen button:** independently activate screen tint/dimming or arm the selected screen schedule. Exactly two Material extended floating action buttons stay at the bottom right.
 - **Quiet steps with volume-down:** opt in to stepping down through the quiet range when hardware media volume reaches its audible floor. The option is off by default. Explicit Mute remains available; cellular and VoIP call volume is not intercepted by this feature.
 - **Bluetooth calibration:** find the first audible media-volume step on Android 13+. Preview controls are capped at four steps above the lowest nonzero index. Calibrations are saved by headset name; uncalibrated users keep the original path without media-route queries.
-- A persistent notification with Pause, plus a Quick Settings tile. Pausing removes the screen filter and releases the audio effect.
+- A persistent notification with Stop, plus a screen-only Quick Settings tile. The tile never toggles audio. The notification Stop action stops both; either home button stops its own feature.
 
 All features are free. No ads, accounts, analytics, purchase prompts, or internet permission. System-wide dimming temporarily reduces the system brightness and pauses adaptive brightness, restoring the saved brightness and mode when paused. Manual brightness changes take precedence; use **Resume screen dimming** to apply it again. Bluetooth Absolute Volume is left unchanged. App backup is disabled so saved coordinates and settings are not uploaded through Android cloud backup.
 
 ## First run
 
 1. Open Quiet Night and choose your preferred color intensity and dim level.
-2. Tap **Begin wind-down** and allow display over other apps. Notifications are optional but make the Pause action easier to reach.
+2. Use **Screen** and **Audio** at the bottom right independently. For warm tint or fallback app dimming, allow display over other apps. Audio works without screen permissions; notifications make Stop easier to reach.
 3. For dimming across system screens, tap **Enable system-wide dimming** and allow **Modify system settings**. This access is optional; without it, dimming only covers ordinary apps.
-4. For Custom or Sunset mode, grant **scheduled changes** access. This allows exact start/stop boundaries while the app is closed. Without this access, scheduled modes stay inactive and explain the missing setup instead of pretending to be armed. Always mode does not need it.
+4. For Custom or Sunset mode, grant **scheduled changes** access. This allows exact start/stop boundaries while the app is closed. Without this access, scheduled screen controls stay inactive and explain the missing setup instead of pretending to be armed. Always mode does not need it.
 5. For Sunset, choose a location once. Update it manually when travelling. Sun times follow the phone’s current timezone; polar locations with no sunrise/sunset show a message and can use Custom instead.
-6. Optionally enable Quiet Dial. If your headset is silent at the first nonzero step, begin wind-down, play audio, and open **Headphone setup** to calibrate the first audible step.
+6. Turn on **Audio**. If your headset is silent at the first nonzero step, play audio and open **Headphone setup** to calibrate the first audible step. For BX27 this can be step 2. Enable **Quiet steps with volume-down** to continue into the quiet range using the hardware buttons.
 
-The settings are shared by the selected schedule. Turning Quiet Dial off leaves the screen controls available. Turning wind-down off removes both the visual filter and any active audio effect. The app never restores a previously high hardware volume automatically.
+The schedule applies only to screen controls. Audio stays on until its own button is switched off, even during the daytime or without exact-alarm access. Screen changes do not recreate the running audio engine or overwrite Bluetooth calibration. The app never restores a previously high hardware volume automatically.
 
 ## Light and sleep
 
@@ -66,7 +67,7 @@ adb install -r android/app/build/outputs/apk/fdroid/debug/app-fdroid-debug.apk
 
 Release builds use `:app:assembleFdroidRelease` and require your own signing process. Do not distribute debug keys as release keys. The retained `fdroid` build flavor contains only open-source runtime dependencies.
 
-The 61 regression tests cover brightness restoration, interrupted writes, permission loss, manual overrides, the Android settings adapter, rendered home/schedule screens, the existing Bluetooth fixes, capped calibration, the uncalibrated fast path, optional volume-down behavior, overnight and daytime schedules, DST, solar date wrapping, polar-day fallback, permission gating, alarm scheduling, and the touch-through overlay’s window configuration. CI builds debug and optimized release APKs, runs lint, and executes the regression suite. The new system-wide dimming has automated coverage; physical-device verification remains necessary for OEM-specific behavior.
+Regression tests cover brightness restoration, interrupted writes, permission loss, manual overrides, the Android settings adapter, rendered home/schedule screens, the existing Bluetooth fixes, capped calibration, the uncalibrated fast path, optional volume-down behavior, overnight and daytime schedules, DST, solar date wrapping, polar-day fallback, permission gating, alarm scheduling, and the touch-through overlay’s window configuration. CI builds debug and optimized release APKs, runs lint, and executes the regression suite. On the Pixel 8 Pro, device checks confirmed reduced system brightness with Quick Settings open and after lock/wake; stopping Screen restored the saved level while Audio remained enabled. Other devices and always-on display behavior still require their own verification.
 
 ## Credits and license
 

@@ -52,7 +52,10 @@ class VolumeControlService : Service() {
             val stream = intent.getIntExtra("android.media.EXTRA_VOLUME_STREAM_TYPE", -1)
             val to = intent.getIntExtra("android.media.EXTRA_VOLUME_STREAM_VALUE", -1)
             val from = intent.getIntExtra("android.media.EXTRA_PREV_VOLUME_STREAM_VALUE", to)
-            if (stream >= 0 && to >= 0) coordinator?.onExternalVolumeChange(stream, from, to)
+            if (stream >= 0 && to >= 0) {
+                coordinator?.onExternalVolumeChange(stream, from, to)
+                publishAudio()
+            }
         }
     }
     private val devices = object : AudioDeviceCallback() {
@@ -60,9 +63,9 @@ class VolumeControlService : Service() {
         override fun onAudioDevicesRemoved(devices: Array<out AudioDeviceInfo>?) = routeChanged()
     }
     private val modeListener = if (Build.VERSION.SDK_INT >= 31) AudioManager.OnModeChangedListener {
-        coordinator?.onAudioModeChanged()
+        coordinator?.onAudioModeChanged(); publishAudio()
     } else null
-    private fun routeChanged() { coordinator?.refreshCurve(); coordinator?.onRouteChanged() }
+    private fun routeChanged() { coordinator?.refreshCurve(); coordinator?.onRouteChanged(); publishAudio() }
 
     override fun onCreate() {
         super.onCreate()
@@ -83,7 +86,8 @@ class VolumeControlService : Service() {
     }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
-            SleepSettings.update(this) { it.copy(enabled = false) }; SleepScheduler.reconcile(this)
+            SleepSettings.update(this) { it.copy(screen = false, audio = false) }
+            SleepScheduler.reconcile(this)
             stopSelf(); return START_NOT_STICKY
         }
         if (!applyConfig()) return START_NOT_STICKY
@@ -101,6 +105,7 @@ class VolumeControlService : Service() {
                 c?.calibrateBluetoothFloor(it, intent.getIntExtra(EXTRA_BLUETOOTH_FLOOR, 1))
             }
         }
+        publishAudio()
         return START_STICKY
     }
     private fun step(direction: Int) {
@@ -111,11 +116,15 @@ class VolumeControlService : Service() {
             if (db >= 0) c.applyUpper(c.upperPositionCount() - 1) else c.applyQuiet(db.coerceAtLeast(-30f))
         } else if (direction < 0 && state.upperPos >= state.upperCount - 1) c.applyQuiet(-5f)
         else c.applyUpper((state.upperPos - direction).coerceIn(0, state.upperCount - 1))
+        publishAudio()
     }
     private fun applyConfig(): Boolean {
         val config = SleepSettings.read(this)
-        if (!SleepScheduler.ready(this, config) || !SleepSchedule.plan(config).active) { stopSelf(); return false }
-        if (config.quiet && audio == null) {
+        val plan = SleepSchedule.plan(config)
+        val screenOn = SleepScheduler.screenRunnable(this, config) && plan.active
+        val audioOn = SleepScheduler.audioRunnable(this, config)
+        if (!screenOn && !audioOn) { stopSelf(); return false }
+        if (audioOn && audio == null) {
             val a = AudioController(applicationContext)
             val v = StreamVolumeController(applicationContext)
             val c = FullRangeCoordinator(applicationContext, a, v)
@@ -132,21 +141,33 @@ class VolumeControlService : Service() {
                 v.index(AudioManager.STREAM_MUSIC) >= v.minAudibleIndex(AudioManager.STREAM_MUSIC))
                 c.applyQuiet(a.attenuationDb.value)
             ControlLive.effect = if (!a.isEffectAvailable) ControlLive.Effect.NONE else if (a.usingPreferredStrategy) ControlLive.Effect.PREFERRED else ControlLive.Effect.FALLBACK
-        } else if (!config.quiet && audio != null) releaseAudio()
-        val dimming = ScreenDimming.apply(this, config.dim)
+        } else if (!audioOn && audio != null) releaseAudio()
+        val dimming = if (screenOn) {
+            ScreenDimming.apply(this, config.dim)
+        } else {
+            val restored = ScreenDimming.restore(this)
+            ScreenDimming.Result(if (restored) ScreenDimming.Mode.OFF else ScreenDimming.Mode.RESTORE_NEEDED, 0)
+        }
+        publishAudio()
         ControlLive.dimming = dimming.mode
         // System brightness already dims the panel. Do not also apply an app dim layer.
-        overlay.update(config.copy(dim = dimming.overlayDim), "${audio?.attenuationDb?.value?.toInt() ?: 0} dB", { step(-1) }, { step(1) })
-        (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(802, notification())
+        overlay.update(config.copy(screen = screenOn, dim = dimming.overlayDim), "${audio?.attenuationDb?.value?.toInt() ?: 0} dB", { step(-1) }, { step(1) })
+        (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(802, notification(config.copy(screen = screenOn, audio = audioOn)))
         return true
     }
-    private fun releaseAudio() { coordinator?.dispose(); coordinator = null; audio?.release(); audio = null; volume = null; ControlLive.effect = ControlLive.Effect.UNKNOWN }
-    private fun notification(): Notification {
+    private fun publishAudio() { ControlLive.audioState = coordinator?.uiState() }
+    private fun releaseAudio() { ControlLive.audioState = null; coordinator?.dispose(); coordinator = null; audio?.release(); audio = null; volume = null; ControlLive.effect = ControlLive.Effect.UNKNOWN }
+    private fun notification(config: SleepConfig = SleepSettings.read(this)): Notification {
         val open = PendingIntent.getActivity(this, 1, Intent(this, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val stop = PendingIntent.getService(this, 2, Intent(this, VolumeControlService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val detail = when {
+            config.screen && config.audio -> "Screen and sound, softened for the evening"
+            config.screen -> "Your screen is softened for the evening"
+            else -> "Quiet audio controls are on"
+        }
         return NotificationCompat.Builder(this, "quiet_night").setSmallIcon(R.drawable.ic_qs_tile)
-            .setContentTitle("Quiet Night is on").setContentText("Your screen and sound, softened for the evening")
-            .setContentIntent(open).addAction(0, "Pause", stop).setOngoing(true).setSilent(true).build()
+            .setContentTitle("Quiet Night is on").setContentText(detail)
+            .setContentIntent(open).addAction(0, "Stop", stop).setOngoing(true).setSilent(true).build()
     }
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
