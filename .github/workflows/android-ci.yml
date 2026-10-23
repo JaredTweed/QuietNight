@@ -1,7 +1,7 @@
 name: Quiet Night Android CI
 on:
   push:
-    branches: [ main ]
+    branches: [ main, feat/sleep-companion ]
     paths: [ 'android/**', '.github/workflows/android-ci.yml' ]
   pull_request:
     branches: [ main ]
@@ -21,7 +21,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Build and run regression tests
         working-directory: android
-        run: ./gradlew :app:assembleFdroidDebug :app:testFdroidDebugUnitTest --no-daemon --stacktrace
+        run: ./gradlew :app:assembleFdroidDebug :app:testFdroidDebugUnitTest :app:lintFdroidDebug :app:assembleFdroidRelease --no-daemon --stacktrace
       - uses: actions/upload-artifact@v4
         with:
           name: quiet-night-debug

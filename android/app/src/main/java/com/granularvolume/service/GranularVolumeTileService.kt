@@ -10,6 +10,8 @@ import com.granularvolume.sleep.*
 
 class GranularVolumeTileService : TileService() {
     override fun onStartListening() { super.onStartListening(); updateTile() }
+    // The PendingIntent overload only exists on API 34+. The Intent path is required on older OS versions.
+    @android.annotation.SuppressLint("StartActivityAndCollapseDeprecated")
     override fun onClick() {
         super.onClick()
         if (!SleepScheduler.ready(this)) {

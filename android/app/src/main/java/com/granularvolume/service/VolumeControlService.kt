@@ -5,6 +5,8 @@ import android.content.*
 import android.content.pm.ServiceInfo
 import android.media.*
 import android.os.*
+import android.database.ContentObserver
+import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.granularvolume.MainActivity
@@ -32,6 +34,15 @@ class VolumeControlService : Service() {
     private lateinit var overlay: NightOverlay
     private lateinit var am: AudioManager
     private val applyLater = Runnable { applyConfig() }
+    private val brightnessChanged = Runnable {
+        if (ScreenDimming.checkForUserChange(this)) applyConfig()
+    }
+    private val brightnessObserver = object : ContentObserver(handler) {
+        override fun onChange(selfChange: Boolean) {
+            handler.removeCallbacks(brightnessChanged)
+            handler.postDelayed(brightnessChanged, 120)
+        }
+    }
     private val prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
         handler.removeCallbacks(applyLater); handler.postDelayed(applyLater, 80)
     }
@@ -65,6 +76,8 @@ class VolumeControlService : Service() {
         SleepSettings.prefs(this).registerOnSharedPreferenceChangeListener(prefsListener)
         ContextCompat.registerReceiver(this, volumeReceiver, IntentFilter("android.media.VOLUME_CHANGED_ACTION"), ContextCompat.RECEIVER_NOT_EXPORTED)
         am.registerAudioDeviceCallback(devices, handler)
+        contentResolver.registerContentObserver(Settings.System.getUriFor(Settings.System.SCREEN_BRIGHTNESS), false, brightnessObserver)
+        contentResolver.registerContentObserver(Settings.System.getUriFor(Settings.System.SCREEN_BRIGHTNESS_MODE), false, brightnessObserver)
         if (Build.VERSION.SDK_INT >= 31 && modeListener != null) am.addOnModeChangedListener({ handler.post(it) }, modeListener)
         ControlLive.running = true
     }
@@ -114,10 +127,16 @@ class VolumeControlService : Service() {
                     ControlLive.Effect.PREFERRED else ControlLive.Effect.FALLBACK
             }
             a.initialize(); c.syncZoneToAppliedGain(); c.refreshCurve()
-            if (c.zoneQuiet && a.attenuationDb.value < 0f) c.applyQuiet(a.attenuationDb.value)
+            // A scheduled start must not unmute media or raise a headset's silent step.
+            if (c.zoneQuiet && a.attenuationDb.value < 0f &&
+                v.index(AudioManager.STREAM_MUSIC) >= v.minAudibleIndex(AudioManager.STREAM_MUSIC))
+                c.applyQuiet(a.attenuationDb.value)
             ControlLive.effect = if (!a.isEffectAvailable) ControlLive.Effect.NONE else if (a.usingPreferredStrategy) ControlLive.Effect.PREFERRED else ControlLive.Effect.FALLBACK
         } else if (!config.quiet && audio != null) releaseAudio()
-        overlay.update(config, "${audio?.attenuationDb?.value?.toInt() ?: 0} dB", { step(-1) }, { step(1) })
+        val dimming = ScreenDimming.apply(this, config.dim)
+        ControlLive.dimming = dimming.mode
+        // System brightness already dims the panel. Do not also apply an app dim layer.
+        overlay.update(config.copy(dim = dimming.overlayDim), "${audio?.attenuationDb?.value?.toInt() ?: 0} dB", { step(-1) }, { step(1) })
         (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(802, notification())
         return true
     }
@@ -132,9 +151,10 @@ class VolumeControlService : Service() {
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
         SleepSettings.prefs(this).unregisterOnSharedPreferenceChangeListener(prefsListener)
+        contentResolver.unregisterContentObserver(brightnessObserver)
         runCatching { unregisterReceiver(volumeReceiver) }; am.unregisterAudioDeviceCallback(devices)
         if (Build.VERSION.SDK_INT >= 31 && modeListener != null) am.removeOnModeChangedListener(modeListener)
-        overlay.close(); releaseAudio(); ControlLive.reset()
+        overlay.close(); ScreenDimming.restore(this); releaseAudio(); ControlLive.reset()
         super.onDestroy()
     }
     override fun onBind(intent: Intent?): IBinder? = null

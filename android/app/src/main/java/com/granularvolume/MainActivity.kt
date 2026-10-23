@@ -24,7 +24,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.location.LocationManagerCompat
 import androidx.core.os.CancellationSignal
 import com.google.android.material.slider.Slider
-import com.google.android.material.materialswitch.MaterialSwitch
+import com.google.android.material.switchmaterial.SwitchMaterial
 import com.granularvolume.audio.StreamVolumeController
 import com.granularvolume.service.VolumeControlService
 import com.granularvolume.sleep.*
@@ -43,6 +43,8 @@ class MainActivity : AppCompatActivity() {
     private var soundValue: TextView? = null
     private var soundSlider: Slider? = null
     private var soundHint: TextView? = null
+    private var displayHint: TextView? = null
+    private var resumeDimming: Button? = null
     private var adjustingSound = false
     private var pendingEnable = false
     private var locationRequest: CancellationSignal? = null
@@ -57,6 +59,9 @@ class MainActivity : AppCompatActivity() {
     private val timingPermission = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         if (pendingEnable && SleepScheduler.hasTimingPermission(this)) enable()
         else { pendingEnable = false; SleepScheduler.reconcile(this); render() }
+    }
+    private val brightnessPermission = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        SleepScheduler.reconcile(this); render()
     }
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
     private val locationPermission = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -130,6 +135,7 @@ class MainActivity : AppCompatActivity() {
         val amount = text("$value$unit", 18f, color, true); row.addView(amount); parent.add(row, 19)
         val s = Slider(this).apply {
             valueFrom = 0f; valueTo = max.toFloat(); stepSize = step; this.value = value.toFloat()
+            isTickVisible = false
             contentDescription = label
             thumbTintList = ColorStateList.valueOf(color); trackActiveTintList = ColorStateList.valueOf(color)
             trackInactiveTintList = ColorStateList.valueOf(NightColors.stroke)
@@ -143,8 +149,13 @@ class MainActivity : AppCompatActivity() {
         val labels = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         labels.add(text(title, 15f, bold = true)); labels.add(text(subtitle, 12f, NightColors.secondary), 3)
         row.addView(labels, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(12) })
-        row.addView(MaterialSwitch(this).apply {
-            setShowText(false); textOn = ""; textOff = ""
+        row.addView(SwitchMaterial(this).apply {
+            setShowText(false); textOn = ""; textOff = ""; isUseMaterialThemeColors = false
+            minHeight = dp(48); switchMinWidth = dp(52)
+            thumbTintList = ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+                intArrayOf(NightColors.amber, NightColors.lavender))
+            trackTintList = ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+                intArrayOf(0xFF946B45.toInt(), 0xFF6A5C78.toInt()))
             isChecked = checked; isEnabled = enabled; contentDescription = title
             setOnCheckedChangeListener { _, value -> changed(value) }
         }); row.alpha = if (enabled) 1f else .45f; parent.add(row, 5)
@@ -177,6 +188,18 @@ class MainActivity : AppCompatActivity() {
         slider(light, "Color intensity", config.warmth, 100) { n -> persist { it.copy(warmth = n) } }
         slider(light, "Screen dim", config.dim, 85, color = NightColors.lavender) { n -> persist { it.copy(dim = n) } }
         light.add(text("Set either slider to 0% to turn that adjustment off. Dimming is capped at 85%.", 12f, NightColors.secondary), 2)
+        displayHint = text("", 12f, NightColors.secondary)
+        light.add(displayHint!!, 9)
+        if (!ScreenDimming.canWrite(this) && (config.dim > 0 || ScreenDimming.needsRestore(this))) {
+            light.add(button("Enable system-wide dimming") {
+                brightnessPermission.launch(ScreenDimming.permissionIntent(this))
+            }, 12)
+            light.add(text("Dims Quick Settings, notifications, and the interactive lock screen. Saves your brightness and adaptive mode for restoration on stop; manual changes take precedence. Without access, only app screens are dimmed.", 12f, NightColors.secondary), 6)
+        }
+        resumeDimming = button("Resume screen dimming") {
+            ScreenDimming.resume(this); SleepScheduler.reconcile(this); render()
+        }.apply { visibility = View.GONE }
+        light.add(resumeDimming!!, 8)
         val schedule = card("Your evening rhythm", "Choose when your light and sound settings are active.")
         val modes = LinearLayout(this)
         for ((mode, name) in listOf(ScheduleMode.ALWAYS to "Always", ScheduleMode.SUN to "Sunset", ScheduleMode.CUSTOM to "Custom")) {
@@ -266,6 +289,17 @@ class MainActivity : AppCompatActivity() {
             val gain = if (Prefs.isLevelInQuietZone(this)) (-Prefs.getAttenuation(this)).coerceIn(0f, 30f) else 0f
             soundSlider?.let { if (kotlin.math.abs(it.value - gain) > .1f) it.value = (gain / 5).toInt() * 5f }
             soundValue?.text = "${gain.toInt()} dB"
+        }
+        val userControl = ScreenDimming.userHasControl(this)
+        resumeDimming?.visibility = if (userControl && config.enabled && config.dim > 0) View.VISIBLE else View.GONE
+        displayHint?.text = when {
+            ScreenDimming.needsRestore(this) && !ScreenDimming.canWrite(this) -> "Allow settings access to restore your saved brightness. You can also adjust it in Quick Settings."
+            config.dim == 0 -> "Screen dimming is off."
+            userControl -> "You changed system brightness. That setting is left alone until you resume dimming or restart wind-down."
+            !config.enabled || !plan.active -> if (ScreenDimming.canWrite(this)) "System-wide dimming is ready for your next wind-down." else "App-only dimming. Enable system-wide dimming to include system screens."
+            ControlLive.dimming == ScreenDimming.Mode.SYSTEM -> "System-wide dimming is on. Your previous brightness and adaptive mode return when you pause."
+            ControlLive.dimming == ScreenDimming.Mode.RESTORE_NEEDED -> "Your saved brightness needs restoring. Check system-settings access."
+            else -> "App-only dimming. System brightness is unavailable on this device or access has not been granted."
         }
         soundHint?.text = when {
             !ControlLive.running || !plan.active -> "Begin wind-down to adjust the sound."
@@ -373,7 +407,7 @@ class MainActivity : AppCompatActivity() {
     }
     private fun about() {
         androidx.appcompat.app.AlertDialog.Builder(this).setTitle("A quieter kind of evening")
-            .setMessage("Quiet Night is a free, open-source fork of Granular Volume by Rzuss.\n\nEverything stays on your device. No ads, accounts, tracking, or internet permission. Location is optional and saved only to calculate sun times; there is no background location tracking.\n\nDimming bright light and reducing blue light can support an evening routine. A screen tint is not a sleep treatment. Some protected system screens hide overlays.\n\nGPL-3.0. Source: github.com/JaredTweed/granular-volume")
+            .setMessage("Quiet Night is a free, open-source fork of Granular Volume by Rzuss.\n\nEverything stays on your device. No ads, accounts, tracking, or internet permission. Location is optional and saved only to calculate sun times; there is no background location tracking.\n\nDimming bright light and reducing blue light can support an evening routine. A screen tint is not a sleep treatment. System-wide dimming uses device brightness; warm tint is limited to app screens. Some protected screens hide overlays, and always-on displays have separate brightness rules.\n\nGPL-3.0. Source: github.com/JaredTweed/granular-volume")
             .setNeutralButton("Source code") { _, _ ->
                 runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/JaredTweed/granular-volume"))) }
                     .onFailure { toast("Source: github.com/JaredTweed/granular-volume") }

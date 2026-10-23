@@ -8,7 +8,7 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.ScrollView
 import android.widget.TextView
-import com.google.android.material.materialswitch.MaterialSwitch
+import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.slider.Slider
 import com.granularvolume.MainActivity
 import org.junit.Assert.*
@@ -73,13 +73,15 @@ class HomeScreenTest {
         val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
         try {
             val activity = controller.get()
-            val switches = views(activity.window.decorView).filterIsInstance<MaterialSwitch>()
+            val switches = views(activity.window.decorView).filterIsInstance<SwitchMaterial>()
             val quiet = switches.single { it.contentDescription == "Quiet Dial" }
             val down = switches.single { it.contentDescription == "Quiet steps with volume-down" }
             assertFalse(quiet.isChecked); assertFalse(down.isEnabled)
+            assertNotNull(quiet.thumbDrawable); assertNotNull(quiet.trackDrawable)
+            assertTrue(quiet.width >= 48 * activity.resources.displayMetrics.density)
             quiet.performClick()
             assertTrue(SleepSettings.read(activity).quiet)
-            val updated = views(activity.window.decorView).filterIsInstance<MaterialSwitch>()
+            val updated = views(activity.window.decorView).filterIsInstance<SwitchMaterial>()
                 .single { it.contentDescription == "Quiet steps with volume-down" }
             assertTrue(updated.isEnabled); updated.performClick()
             assertTrue(SleepSettings.read(activity).volumeDown)

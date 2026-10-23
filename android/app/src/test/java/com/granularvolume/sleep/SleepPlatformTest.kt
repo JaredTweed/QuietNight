@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.*
 import android.os.Build
 import android.view.WindowManager
+import android.provider.Settings
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -40,6 +41,7 @@ class SleepPlatformTest {
             override fun stopService(intent: Intent): Boolean { stops++; return true }
         }
         SleepSettings.prefs(context).edit().clear().commit()
+        context.getSharedPreferences("quiet_night_display", Context.MODE_PRIVATE).edit().clear().commit()
         ShadowSettings.setCanDrawOverlays(true)
     }
     @Test fun alwaysStartsWithoutAskingForExactAlarms() {
@@ -89,5 +91,16 @@ class SleepPlatformTest {
         SleepSettings.prefs(context).edit().putInt("dim", 100).putInt("warmth", -12).commit()
         val config = SleepSettings.read(context)
         assertEquals(85, config.dim); assertEquals(0, config.warmth)
+    }
+    @Test fun publicBrightnessAdapterRestoresSystemBrightnessAndAdaptiveMode() {
+        Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, 200)
+        Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE, 1)
+        assertTrue(ScreenDimming.canWrite(context))
+        assertEquals(ScreenDimming.Mode.SYSTEM, ScreenDimming.apply(context, 75).mode)
+        assertEquals(50, Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS))
+        assertEquals(0, Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE))
+        assertTrue(ScreenDimming.restore(context))
+        assertEquals(200, Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS))
+        assertEquals(1, Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE))
     }
 }

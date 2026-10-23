@@ -1,17 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  Android 12 and above.
-
-  cloud-backup covers Google's own backup; device-transfer covers a direct phone to phone move.
-  Both are limited to gv_entitlement.xml for the same reason: the trial has to survive a reinstall
-  or a new phone, while the person's settings and usage stay on the device they were made on.
-  Naming an include is what excludes everything else; see backup_rules.xml.
--->
+<!-- Never transfer coordinates, calibration, or a brightness recovery snapshot to another device. -->
 <data-extraction-rules>
     <cloud-backup>
-        <include domain="sharedpref" path="gv_entitlement.xml" />
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
     </cloud-backup>
     <device-transfer>
-        <include domain="sharedpref" path="gv_entitlement.xml" />
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
     </device-transfer>
 </data-extraction-rules>

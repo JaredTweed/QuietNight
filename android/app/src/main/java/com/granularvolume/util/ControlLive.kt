@@ -1,5 +1,7 @@
 package com.granularvolume.util
 
+import com.granularvolume.sleep.ScreenDimming
+
 /**
  * What the running control looks like RIGHT NOW, for every surface outside the service (1.7.0).
  *
@@ -28,10 +30,12 @@ object ControlLive {
 
     @Volatile
     var effect = Effect.UNKNOWN
+    @Volatile var dimming = ScreenDimming.Mode.OFF
 
     fun reset() {
         running = false
         sessionOpen = false
         effect = Effect.UNKNOWN
+        dimming = ScreenDimming.Mode.OFF
     }
 }

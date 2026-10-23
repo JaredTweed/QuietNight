@@ -25,6 +25,7 @@ object SleepScheduler {
         val plan = SleepSchedule.plan(config)
         if (!config.enabled || !ready(context, config)) {
             context.stopService(Intent(context, VolumeControlService::class.java))
+            ScreenDimming.restore(context)
             return
         }
         plan.nextChange?.let {
@@ -35,7 +36,11 @@ object SleepScheduler {
             try { context.startForegroundService(Intent(context, VolumeControlService::class.java)) }
             catch (_: IllegalStateException) { /* Android refused background start; next foreground open retries. */ }
             catch (_: SecurityException) { /* Overlay permission may have just been revoked. */ }
-        } else context.stopService(Intent(context, VolumeControlService::class.java))
+        } else {
+            context.stopService(Intent(context, VolumeControlService::class.java))
+            // Also recover a saved brightness transaction if the old process died.
+            ScreenDimming.restore(context)
+        }
     }
 }
 
