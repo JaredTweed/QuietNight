@@ -1,12 +1,6 @@
 package com.granularvolume.util
 
-/**
- * F-Droid build: every bundled component is open source, which is the point of this build.
- *
- * Flavor-split for the same reason as [ReviewHelper] and [KeyCheck]: the Play build carries one
- * proprietary Google library that this build does not, and a licences screen that listed it here
- * would be false.
- */
+/** Runtime components included in the entirely open-source Quiet Night build. */
 object LicenseInfo {
 
     /** name to licence, shown in order. */

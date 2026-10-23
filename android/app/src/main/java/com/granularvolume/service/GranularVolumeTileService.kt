@@ -6,94 +6,27 @@ import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import com.granularvolume.MainActivity
-import com.granularvolume.util.ControlLive
-import com.granularvolume.util.PermissionHelper
-import com.granularvolume.util.Prefs
-import com.granularvolume.util.ProAccess
-import com.granularvolume.util.ReviewHelper
+import com.granularvolume.sleep.*
 
-/**
- * Quick Settings tile that toggles the VolumeControlService on/off.
- *
- * The tile reflects the current service state on every panel open (onStartListening)
- * and updates optimistically on tap so the user sees immediate feedback.
- *
- * If the overlay permission has not been granted, tapping the tile opens MainActivity
- * so the user can complete the setup, instead of starting a service that cannot show
- * its overlay.
- */
 class GranularVolumeTileService : TileService() {
-
-    override fun onStartListening() {
-        super.onStartListening()
-        syncTile()
-    }
-
+    override fun onStartListening() { super.onStartListening(); updateTile() }
     override fun onClick() {
         super.onClick()
-
-        // This tile is an entry point into the app, and it WRITES prefs before the service it
-        // starts gets to run: startForegroundService only queues the service's onCreate on this
-        // same main thread, so reviewIntentIfDue below (tile_activations = 1) lands first, and
-        // the service's own grandfather decision would then read that write as prior use. The
-        // decision has to be taken here, first, from a still-untouched prefs file. Reached on a
-        // fresh install only by someone who granted the overlay permission from system Settings
-        // and added the tile without ever opening the app (2026-09-10 review). Idempotent, so
-        // the ordinary case, where MainActivity or the service already decided, costs one read.
-        ProAccess.evaluateGrandfather(applicationContext)
-
-        if (!PermissionHelper.canDrawOverlays(applicationContext)) {
-            launchMainActivity()
+        if (!SleepScheduler.ready(this)) {
+            val intent = Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (Build.VERSION.SDK_INT >= 34) startActivityAndCollapse(PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE))
+            else { @Suppress("DEPRECATION") startActivityAndCollapse(intent) }
             return
         }
-
-        // 1.7.0: the live flag, not the stored one. After the system killed the control the
-        // stored flag still said "running": the tile showed On, and the first tap "stopped" a
-        // control that was not there, so turning it on took two taps.
-        val running = ControlLive.running
-        if (running) {
-            // stopService() bypasses ACTION_STOP, and the service's onDestroy no longer
-            // clears the boot-restore flag (a device shutdown runs onDestroy too, and that
-            // case must stay restorable). This is a user-intended stop, so clear it here.
-            Prefs.setServiceWasRunning(applicationContext, false)
-            stopService(Intent(this, VolumeControlService::class.java))
-            syncTile(active = false)
-        } else {
-            startForegroundService(Intent(this, VolumeControlService::class.java))
-            syncTile(active = true)
-            // The control is now running — the real "moment of value" for tile-only
-            // users. After enough activations this offers the in-app review once
-            // (Play flavor); reviewIntentIfDue returns null until then, and always
-            // on F-Droid, so nothing here disturbs the user in the normal case.
-            ReviewHelper.reviewIntentIfDue(applicationContext)?.let { startActivityAndCollapseCompat(it) }
-        }
+        SleepSettings.update(this) { it.copy(enabled = !it.enabled) }
+        SleepScheduler.reconcile(this); updateTile()
     }
-
-    private fun syncTile(active: Boolean = ControlLive.running) {
-        val tile = qsTile ?: return
-        tile.state = if (active) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
-        tile.label = getString(com.granularvolume.R.string.app_name)
-        tile.updateTile()
-    }
-
-    private fun launchMainActivity() {
-        startActivityAndCollapseCompat(
-            Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        )
-    }
-
-    /**
-     * Starts an activity from the tile the sanctioned way. On Android 14+ the
-     * PendingIntent overload is required; older versions take the Intent directly.
-     * Both collapse the Quick Settings panel so the launched activity comes forward.
-     */
-    private fun startActivityAndCollapseCompat(intent: Intent) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            val pi = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
-            startActivityAndCollapse(pi)
-        } else {
-            @Suppress("DEPRECATION")
-            startActivityAndCollapse(intent)
+    private fun updateTile() {
+        val config = SleepSettings.read(this)
+        qsTile?.apply {
+            label = "Quiet Night"; state = if (config.enabled) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
+            if (Build.VERSION.SDK_INT >= 29) subtitle = if (SleepSchedule.plan(config).active) "Wind-down on" else if (config.enabled) "Scheduled" else "Paused"
+            updateTile()
         }
     }
 }

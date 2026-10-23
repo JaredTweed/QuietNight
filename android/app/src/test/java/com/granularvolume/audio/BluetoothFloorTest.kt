@@ -115,6 +115,51 @@ class BluetoothFloorTest {
         assertEquals(3, volume.calibrationMaxIndex())
     }
 
+    @Test fun optionalVolumeDownEntersQuietZoneInsteadOfHardwareMute() {
+        coordinator.volumeDownProvider = { true }
+        index = 0
+        coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 1, 0)
+        assertEquals(listOf(1 to -5f), writes)
+        assertTrue(coordinator.zoneQuiet)
+    }
+
+    @Test fun optionalVolumeDownUsesCalibratedFloorAndStopsAtThirtyDb() {
+        calibratedQuiet(-25f)
+        coordinator.volumeDownProvider = { true }
+        repeat(3) {
+            index = 1
+            coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 2, 1)
+            assertEquals(2, index)
+            assertEquals(-30f, audio.attenuationDb.value)
+            ShadowSystemClock.advanceBy(Duration.ofSeconds(2))
+        }
+    }
+
+    @Test fun disabledVolumeDownStillAllowsSystemMute() {
+        index = 0
+        coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 1, 0)
+        assertEquals(0, index); assertTrue(writes.isEmpty())
+    }
+
+    @Test fun volumeDownAboveFloorDoesNotEnterQuietZoneEarly() {
+        coordinator.volumeDownProvider = { true }
+        index = 1
+        coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 2, 1)
+        assertFalse(coordinator.zoneQuiet); assertTrue(writes.isEmpty())
+    }
+
+    @Test fun volumeDownDoesNotOverrideCallsOrExplicitMute() {
+        coordinator.volumeDownProvider = { true }
+        `when`(am.mode).thenReturn(AudioManager.MODE_IN_CALL)
+        index = 0
+        coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 1, 0)
+        assertTrue(writes.isEmpty())
+        `when`(am.mode).thenReturn(AudioManager.MODE_NORMAL)
+        coordinator.toggleMute(); writes.clear()
+        coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 1, 0)
+        assertTrue(writes.isEmpty()); assertTrue(coordinator.isMuted)
+    }
+
     @Test fun enteringQuietFromSilentHeadsetIndexAppliesGainBeforeRaisingHardware() {
         route(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP)
         Prefs.setBluetoothFloor(context, "Headset", 2)

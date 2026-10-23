@@ -18,14 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 class AudioController(private val context: Context) {
 
-    /**
-     * Where a locked device is held: 0 dB, no attenuation at all.
-     *
-     * Under the trial model there is no permanent free tier to fall back to. Every install
-     * gets the complete app for [com.granularvolume.util.Entitlement.TRIAL_DAYS] days, and
-     * after that the range itself is what is being sold. Devices that used the app before
-     * the trial existed are grandfathered and never reach this floor.
-     */
+    /** Pass-through floor when a caller disables the optional audio-policy hook. */
     val lockedFloorDb = 0f
 
     private val tag = "GranularVolume:AudioCtrl"
@@ -45,7 +38,7 @@ class AudioController(private val context: Context) {
     // ── Full-range gate (1.5.0) ─────────────────────────────────────
     /**
      * Answers "is the full quiet range unlocked on this device". Wired by the
-     * service to ProAccess. Defaults to open on purpose: if a future entry point
+     * caller to its policy. Quiet Night uses the open default: if a future entry point
      * forgets to wire it, the failure mode is a free full range, never a paying
      * or grandfathered user losing depth.
      */

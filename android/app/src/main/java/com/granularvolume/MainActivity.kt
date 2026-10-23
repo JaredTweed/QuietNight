@@ -1,700 +1,383 @@
 package com.granularvolume
 
 import android.Manifest
-import android.app.Dialog
-import android.app.StatusBarManager
-import android.content.ComponentName
-import android.content.Intent
+import android.app.TimePickerDialog
+import android.content.*
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
-import android.graphics.drawable.Icon
+import android.graphics.*
+import android.graphics.drawable.GradientDrawable
+import android.location.LocationManager
 import android.net.Uri
-import android.os.Build
-import android.os.Bundle
-import android.os.PowerManager
+import android.os.*
 import android.provider.Settings
-import android.util.Log
-import android.view.View
-import android.widget.Button
-import android.widget.TextView
-import android.widget.Toast
+import android.text.InputType
+import android.view.*
+import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.NotificationManagerCompat
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.ContextCompat
-import com.granularvolume.service.GranularVolumeTileService
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.location.LocationManagerCompat
+import androidx.core.os.CancellationSignal
+import com.google.android.material.slider.Slider
+import com.google.android.material.materialswitch.MaterialSwitch
+import com.granularvolume.audio.StreamVolumeController
 import com.granularvolume.service.VolumeControlService
-import com.granularvolume.util.AccessState
-import com.granularvolume.util.BillingManager
-import com.granularvolume.util.ControlLive
-import com.granularvolume.util.Entitlement
-import com.granularvolume.util.Links
-import com.granularvolume.util.OverlayGrantWatcher
-import com.granularvolume.util.PermissionHelper
-import com.granularvolume.util.ProAccess
-import com.granularvolume.util.PurchaseFlow
-import com.granularvolume.util.Prefs
-import com.granularvolume.util.ReviewHelper
-import com.granularvolume.util.TrialNotices
+import com.granularvolume.sleep.*
+import com.granularvolume.util.*
+import java.time.*
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
-/**
- * Single-screen activity: guides the user through permission grants,
- * then starts the foreground service and finishes (the overlay IS the UI).
- *
- * First-run sequence on Android 13+:
- *   1. Overlay permission (manual — Android OS requirement)
- *   2. POST_NOTIFICATIONS runtime request
- *   3. Start VolumeControlService
- *   4. requestAddTileService dialog — one-tap "Add" to Quick Settings (offered once only)
- *   5. finish()
- *
- * 1.7.0, the launcher icon as a door. Once the app is set up this screen used to answer every
- * tap on the icon the same way: start the control and close, with a toast that said "started"
- * even when it had been running for days. Status, price and purchase were reachable only
- * through the small i on the dial. Now a tap on the icon while the control is RUNNING opens
- * "Your access"; when it is not running, it starts it, as before.
- */
+/** The fork's permanent home: light, schedule, and sound in one place. */
 class MainActivity : AppCompatActivity() {
-
-    private val overlayPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) {
-        // 1.7.2: the watcher's errand is over either way once this screen is back.
-        OverlayGrantWatcher.stop(this)
-        if (PermissionHelper.canDrawOverlays(this)) {
-            launchService()
-        } else {
-            // Back with the switch still off. A toast said so for two seconds; the card
-            // that updateStatus() now shows stays, and repeats what to look for.
-            updateStatus()
-        }
+    private val handler = Handler(Looper.getMainLooper())
+    private lateinit var root: LinearLayout
+    private lateinit var scroll: ScrollView
+    private var status: TextView? = null
+    private var statusDetail: TextView? = null
+    private var soundValue: TextView? = null
+    private var soundSlider: Slider? = null
+    private var soundHint: TextView? = null
+    private var adjustingSound = false
+    private var pendingEnable = false
+    private var locationRequest: CancellationSignal? = null
+    private val reconcile = Runnable { SleepScheduler.reconcile(this); refreshStatus() }
+    private val refresh = object : Runnable {
+        override fun run() { refreshStatus(); handler.postDelayed(this, 2000) }
     }
-
-    // Best-effort: the service works whether or not the user grants notifications.
-    private val notificationPermLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { _ -> startServiceAndOfferTile() }
-
-    companion object {
-        private const val STATE_TRIAL_CARD = "trial_card_showing"
-        private const val STATE_OVERLAY_TRIED = "overlay_tried"
-        private const val STATE_OVERLAY_GUIDE = "overlay_guide_showing"
-
-        /**
-         * Android 11 and later open the list of every app for "Display over other apps" and
-         * ignore the package in the request; Android 9 and 10 open this app's own switch.
-         * The guide explains a list, so it is shown only where there is one.
-         */
-        private val OVERLAY_OPENS_A_LIST = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
-
-        /**
-         * Version of the Terms this build presents. Bump ONLY on a material change to the
-         * Terms, which re-prompts every existing user. Cosmetic edits must not bump it.
-         */
-        /**
-         * Version 2, bumped for the 1.5.0 Terms.
-         *
-         * The earlier reasoning for NOT bumping was that the new sections governed only the
-         * optional purchase and took nothing from anyone. Re-reading the finished text, that
-         * is no longer true: section 14 takes a licence to a user's feedback, section 16 asks
-         * for an export and sanctions representation, and section 7 gained an age and capacity
-         * representation. Those bind every user, buyer or not, and none of them existed in the
-         * version people actually accepted.
-         *
-         * A bump costs one screen on the next launch and does not touch a running service, so
-         * the people most likely to interact, and to buy, will have actively accepted the text
-         * that governs them.
-         *
-         * Version 3, bumped for the trial model. Section 5 previously promised a free tier
-         * "at no charge, permanently". That promise is gone for new installs, replaced by
-         * [Entitlement.TRIAL_DAYS] days of the complete app. Nobody may be moved onto those
-         * terms without being shown them, and existing users are grandfathered in code, not
-         * merely in copy, so what they re-accept still describes what they have.
-         */
-        const val TERMS_VERSION = 3
-
-        /** The countdown card starts appearing this many days before the trial ends. */
-        private const val TRIAL_CARD_FROM_DAYS = 3
-
-        private const val URL_TERMS = "https://rzuss.github.io/granular-volume-privacy/terms-of-use.html"
-        private const val URL_PRIVACY = "https://rzuss.github.io/granular-volume-privacy/"
+    private val overlayPermission = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        if (pendingEnable && PermissionHelper.canDrawOverlays(this)) enable()
+        else { pendingEnable = false; render() }
     }
-
-    /** The countdown card is on screen now / was on screen when this screen was rebuilt. */
-    private var trialCardShowing = false
-    private var trialCardRestored = false
-
-    /** 1.7.2: the settings screen was opened from here at least once in this visit. */
-    private var overlayTried = false
-    private var overlayGuide: Dialog? = null
-
-    override fun onSaveInstanceState(outState: Bundle) {
-        super.onSaveInstanceState(outState)
-        outState.putBoolean(STATE_TRIAL_CARD, trialCardShowing)
-        outState.putBoolean(STATE_OVERLAY_TRIED, overlayTried)
-        outState.putBoolean(STATE_OVERLAY_GUIDE, overlayGuide?.isShowing == true)
+    private val timingPermission = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        if (pendingEnable && SleepScheduler.hasTimingPermission(this)) enable()
+        else { pendingEnable = false; SleepScheduler.reconcile(this); render() }
     }
-
-    override fun onDestroy() {
-        overlayGuide?.dismiss()
-        overlayGuide = null
-        super.onDestroy()
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    private val locationPermission = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        if (it.values.any { granted -> granted }) locate() else toast("You can enter a location manually instead")
     }
-
     override fun onCreate(savedInstanceState: Bundle?) {
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-
-        // Full-range gate (1.5.0): the grandfather verdict must be taken before
-        // this session writes any prefs, or a fresh install could read its own
-        // fresh writes as prior use.
-        ProAccess.evaluateGrandfather(this)
-        // 1.7.0: the two free-week notices are armed from here as well. Until now only a
-        // service start armed them, so someone who opened the app and never started the
-        // control, or whose alarms were lost to a restart, was never told on the last day.
-        TrialNotices.arm(this)
-
-        setupConsentGate()
-        findViewById<TextView>(R.id.tv_link_licenses).setOnClickListener {
-            startActivity(Intent(this, LicensesActivity::class.java))
+        window.statusBarColor = NightColors.background; window.navigationBarColor = NightColors.background
+        window.decorView.systemUiVisibility = 0
+        scroll = ScrollView(this).apply { setBackgroundColor(NightColors.background); isFillViewport = true; clipToPadding = false }
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        ViewCompat.setOnApplyWindowInsetsListener(scroll) { view, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            view.setPadding(bars.left, bars.top, bars.right, bars.bottom); insets
         }
-        findViewById<TextView>(R.id.tv_link_help).setOnClickListener { Links.open(this, Links.HELP) }
-
-        // 1.7.0: set up AND running. The icon is a door to "Your access", not a second start.
-        // Decided before the cards, so the countdown card's once-a-day turn is not spent on a
-        // screen nobody will see: the sheet shows the same days and the same button.
-        if (isSetUp() && ControlLive.running) {
-            ReviewHelper.maybeRequestReview(this) { openAccessAndClose() }
-            return
-        }
-
-        // 1.7.1: a rotation (or any rebuild of this screen) while the countdown card is up keeps
-        // the card. Its once-a-day turn is recorded when it is drawn, so the rebuilt screen saw
-        // "already shown today", started the control and closed itself under the reader.
-        trialCardRestored = savedInstanceState?.getBoolean(STATE_TRIAL_CARD, false) == true
-        overlayTried = savedInstanceState?.getBoolean(STATE_OVERLAY_TRIED, false) == true
-        val cardShowing = setupTipjarCard()
-
-        if (isSetUp() && !cardShowing) {
-            // A return visit — the app is already set up and working. This is the
-            // right moment to (rarely, at most once) ask for a review, before the
-            // usual auto-launch-and-finish flow continues exactly as before.
-            ReviewHelper.maybeRequestReview(this) { launchService() }
-            return
-        }
-
-        updateStatus()
-
-        findViewById<Button>(R.id.btn_grant_overlay).setOnClickListener {
-            // 1.7.2: the first time, on a device that will show a list, say what to look for
-            // before the list is on screen. A second try goes straight there: the card above
-            // the button already repeats it.
-            if (OVERLAY_OPENS_A_LIST && !overlayTried) showOverlayGuide() else openOverlaySettings()
-        }
-        findViewById<Button>(R.id.btn_retry_open).setOnClickListener { openOverlaySettings() }
-        findViewById<TextView>(R.id.btn_retry_help).setOnClickListener { Links.open(this, Links.HELP_FIND) }
-        // A rotation while the guide is up keeps the guide: the reader is in the middle of it.
-        if (savedInstanceState?.getBoolean(STATE_OVERLAY_GUIDE, false) == true &&
-            hasAcceptedTerms() && !PermissionHelper.canDrawOverlays(this)
-        ) showOverlayGuide()
-
-        findViewById<Button>(R.id.btn_start_service).setOnClickListener {
-            if (!PermissionHelper.canDrawOverlays(this)) {
-                Toast.makeText(this, R.string.gv_toast_grant_first, Toast.LENGTH_SHORT).show()
-            } else {
-                launchService()
-            }
-        }
+        root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(20), dp(24), dp(32)) }
+        if (resources.configuration.smallestScreenWidthDp >= 600) {
+            scroll.addView(root, android.widget.FrameLayout.LayoutParams(dp(560), -2, Gravity.CENTER_HORIZONTAL))
+        } else scroll.addView(root)
+        setContentView(scroll)
+        render()
     }
-
-    /**
-     * The guide (1.7.2): the app's own icon, name and a switch drawn in the ON position, then
-     * three numbered steps in large type. Its only purpose is that the reader knows the row
-     * they are looking for before Android's list of every app is in front of them.
-     */
-    private fun showOverlayGuide() {
-        if (isFinishing || isDestroyed) return
-        overlayGuide?.dismiss()
-        val dialog = Dialog(this, R.style.Theme_GranularVolume)
-        dialog.setContentView(R.layout.dialog_overlay_guide)
-        dialog.findViewById<Button>(R.id.btn_guide_open).setOnClickListener {
-            dialog.dismiss()
-            openOverlaySettings()
-        }
-        dialog.findViewById<TextView>(R.id.btn_guide_cancel).setOnClickListener { dialog.dismiss() }
-        dialog.setOnDismissListener { if (overlayGuide === dialog) overlayGuide = null }
-        overlayGuide = dialog
-        dialog.show()
-    }
-
-    /**
-     * Opens Android's screen for the permission and starts watching for the grant, so the
-     * user is brought back the moment the switch is on (see [OverlayGrantWatcher]).
-     */
-    private fun openOverlaySettings() {
-        overlayTried = true
-        OverlayGrantWatcher.start(this)
-        try {
-            overlayPermissionLauncher.launch(PermissionHelper.overlayPermissionIntent(this))
-        } catch (e: Exception) {
-            // No such screen on this device (seen on some TV and vendor builds). The app's own
-            // settings page is the nearest place the switch can be reached from.
-            Log.w("GranularVolume", "overlay settings screen unavailable: ${e.message}")
-            runCatching {
-                overlayPermissionLauncher.launch(
-                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
-                )
-            }.onFailure {
-                OverlayGrantWatcher.stop(this)
-                updateStatus()
-            }
-        }
-    }
-
-    private fun isSetUp(): Boolean =
-        PermissionHelper.canDrawOverlays(this) &&
-            PermissionHelper.hasModifyAudioSettings(this) &&
-            hasAcceptedTerms()
-
-    /** Opens "Your access" over whatever is behind, and leaves. Safe after the screen is gone. */
-    private fun openAccessAndClose() {
-        runCatching {
-            applicationContext.startActivity(
-                Intent(applicationContext, InfoSheetActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
-        }.onFailure { Log.w("GranularVolume", "open access: ${it.message}") }
-        if (!isFinishing && !isDestroyed) finish()
-    }
-
     override fun onResume() {
-        super.onResume()
-        // 1.7.2: back in front, by the watcher or by the user. Either way it has done its job.
-        OverlayGrantWatcher.stop(this)
-        updateStatus()
-        recheckOwnership()
+        super.onResume(); SleepScheduler.reconcile(this)
+        if (::root.isInitialized) render()
+        handler.removeCallbacks(refresh); handler.post(refresh)
     }
-
-    /**
-     * 1.7.0: asks Google Play for this account's purchase record every time the screen comes
-     * forward, and redraws when the answer changes where the user stands. Until now only a
-     * service start asked, so a buyer who reinstalled, or bought on another device, was shown
-     * the pay screen until they happened to find the Restore link.
-     */
-    private fun recheckOwnership() {
-        val before = AccessState.of(this)
-        BillingManager.verifyOwnership(applicationContext) { _ ->
-            if (isFinishing || isDestroyed) return@verifyOwnership
-            val after = AccessState.of(this)
-            if (after != before) {
-                Log.i("GranularVolume", "Access changed on resume: $before -> $after")
-                if (after == AccessState.UNLOCKED && ControlLive.running) PurchaseFlow.notifyService(this)
-                setupTipjarCard()
-                updateStatus()
+    override fun onPause() {
+        // Do not lose a pending schedule edit when the user immediately leaves the screen.
+        handler.removeCallbacks(reconcile); SleepScheduler.reconcile(this)
+        handler.removeCallbacks(refresh); super.onPause()
+    }
+    override fun onDestroy() {
+        locationRequest?.cancel(); handler.removeCallbacksAndMessages(null); super.onDestroy()
+    }
+    private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
+    private fun text(value: String, size: Float = 14f, color: Int = NightColors.text, bold: Boolean = false) = TextView(this).apply {
+        text = value; textSize = size; setTextColor(color); setLineSpacing(dp(3).toFloat(), 1f)
+        typeface = Typeface.create("sans-serif", if (bold) Typeface.BOLD else Typeface.NORMAL)
+    }
+    private fun panel(color: Int = NightColors.surface, radius: Int = 24) = GradientDrawable().apply {
+        setColor(color); cornerRadius = dp(radius).toFloat(); setStroke(dp(1), NightColors.stroke)
+    }
+    private fun LinearLayout.add(view: View, top: Int = 0) {
+        addView(view, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(top) })
+    }
+    private fun card(title: String, subtitle: String): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL; background = panel(); setPadding(dp(20), dp(20), dp(20), dp(16))
+        add(text(title, 20f, bold = true)); add(text(subtitle, 13f, NightColors.secondary), 5)
+        root.add(this, 16)
+    }
+    private fun button(label: String, primary: Boolean = false, action: () -> Unit): Button = Button(this).apply {
+        text = label; isAllCaps = false; textSize = 14f; minHeight = dp(50); minimumWidth = 0
+        setPadding(dp(14), dp(10), dp(14), dp(10))
+        setTextColor(if (primary) NightColors.background else NightColors.lavender)
+        background = panel(if (primary) NightColors.amber else NightColors.surface, 16)
+        setOnClickListener { action() }
+    }
+    private fun persist(redraw: Boolean = false, change: (SleepConfig) -> SleepConfig) {
+        SleepSettings.update(this, change)
+        handler.removeCallbacks(reconcile); handler.postDelayed(reconcile, 150)
+        if (redraw) render()
+    }
+    private fun formatTime(minutes: Int): String = LocalTime.of(minutes / 60, minutes % 60).format(
+        DateTimeFormatter.ofPattern(if (android.text.format.DateFormat.is24HourFormat(this)) "HH:mm" else "h:mm a", Locale.getDefault()))
+    private fun slider(parent: LinearLayout, label: String, value: Int, max: Int, unit: String = "%", step: Float = 1f,
+                       color: Int = NightColors.amber, changed: (Int) -> Unit): Pair<Slider, TextView> {
+        val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        row.addView(text(label, 14f, bold = true), LinearLayout.LayoutParams(0, -2, 1f))
+        val amount = text("$value$unit", 18f, color, true); row.addView(amount); parent.add(row, 19)
+        val s = Slider(this).apply {
+            valueFrom = 0f; valueTo = max.toFloat(); stepSize = step; this.value = value.toFloat()
+            contentDescription = label
+            thumbTintList = ColorStateList.valueOf(color); trackActiveTintList = ColorStateList.valueOf(color)
+            trackInactiveTintList = ColorStateList.valueOf(NightColors.stroke)
+            setLabelFormatter { "${it.toInt()}$unit" }
+            addOnChangeListener { _, n, user -> if (user) { amount.text = "${n.toInt()}$unit"; changed(n.toInt()) } }
+        }
+        parent.add(s); return s to amount
+    }
+    private fun toggle(parent: LinearLayout, title: String, subtitle: String, checked: Boolean, enabled: Boolean = true, changed: (Boolean) -> Unit) {
+        val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, dp(10), 0, dp(10)) }
+        val labels = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        labels.add(text(title, 15f, bold = true)); labels.add(text(subtitle, 12f, NightColors.secondary), 3)
+        row.addView(labels, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(12) })
+        row.addView(MaterialSwitch(this).apply {
+            setShowText(false); textOn = ""; textOff = ""
+            isChecked = checked; isEnabled = enabled; contentDescription = title
+            setOnCheckedChangeListener { _, value -> changed(value) }
+        }); row.alpha = if (enabled) 1f else .45f; parent.add(row, 5)
+    }
+    private fun render() {
+        val y = scroll.scrollY; root.removeAllViews(); soundValue = null; soundSlider = null; soundHint = null
+        val config = SleepSettings.read(this)
+        root.add(text("QUIET NIGHT", 12f, NightColors.lavender, true).apply { letterSpacing = .22f })
+        val hero = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        hero.addView(text("Make room\nfor rest.", 36f).apply { typeface = Typeface.create("serif", Typeface.NORMAL) }, LinearLayout.LayoutParams(0, -2, 1f))
+        hero.addView(MoonView(this).apply { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }, LinearLayout.LayoutParams(dp(108), dp(134)))
+        root.add(hero, 6)
+        root.add(text("Softer light. Quieter sound. Your evening, at ease.", 13f, NightColors.secondary), 2)
+        val state = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; background = panel(0xFF272030.toInt()); setPadding(dp(20), dp(18), dp(20), dp(18))
+        }
+        status = text("", 19f, NightColors.text, true); statusDetail = text("", 13f, NightColors.secondary)
+        state.add(status!!); state.add(statusDetail!!, 4)
+        state.add(button(if (config.enabled) "Pause wind-down" else "Begin wind-down", true) {
+            if (SleepSettings.read(this).enabled) {
+                SleepSettings.update(this) { it.copy(enabled = false) }; SleepScheduler.reconcile(this); render()
+            } else enable()
+        }, 14)
+        root.add(state, 22)
+        if (!PermissionHelper.canDrawOverlays(this)) {
+            val setup = card("Let the evening follow you", "Allow Quiet Night to soften the screen over other apps.")
+            setup.add(button("Allow screen overlay") { overlayPermission.launch(PermissionHelper.overlayPermissionIntent(this)) }, 12)
+        }
+        val light = card("Evening light", "A red-orange tint with less blue, paired with gentle dimming.")
+        slider(light, "Color intensity", config.warmth, 100) { n -> persist { it.copy(warmth = n) } }
+        slider(light, "Screen dim", config.dim, 85, color = NightColors.lavender) { n -> persist { it.copy(dim = n) } }
+        light.add(text("Set either slider to 0% to turn that adjustment off. Dimming is capped at 85%.", 12f, NightColors.secondary), 2)
+        val schedule = card("Your evening rhythm", "Choose when your light and sound settings are active.")
+        val modes = LinearLayout(this)
+        for ((mode, name) in listOf(ScheduleMode.ALWAYS to "Always", ScheduleMode.SUN to "Sunset", ScheduleMode.CUSTOM to "Custom")) {
+            modes.addView(button(name, config.mode == mode) { persist(true) { it.copy(mode = mode) } },
+                LinearLayout.LayoutParams(0, dp(48), 1f).apply { if (mode != ScheduleMode.ALWAYS) marginStart = dp(6) })
+        }
+        schedule.add(modes, 16)
+        when (config.mode) {
+            ScheduleMode.ALWAYS -> schedule.add(text("Stays on until you pause. No schedule access needed.", 13f, NightColors.secondary), 14)
+            ScheduleMode.SUN -> {
+                schedule.add(text("Sunset → sunrise", 18f, NightColors.amber, true), 18)
+                schedule.add(text(if (config.latitude == null) "Choose a location once. Sun times update locally each day." else
+                    "Using ${"%.2f".format(config.latitude)}°, ${"%.2f".format(config.longitude)}°. No background location tracking.", 12f, NightColors.secondary), 5)
+                schedule.add(button("Use current location") { requestLocation() }, 12)
+                schedule.add(button("Enter location manually") { locationDialog() }, 6)
+            }
+            ScheduleMode.CUSTOM -> {
+                val dial = SleepWindowDial(this).apply { start = config.start; end = config.end }
+                schedule.addView(dial, LinearLayout.LayoutParams(-1, dp(265)).apply { topMargin = dp(10) })
+                val times = LinearLayout(this)
+                val startButton = button("START\n${formatTime(config.start)}") { pickTime(true) }
+                val endButton = button("END\n${formatTime(config.end)}") { pickTime(false) }
+                times.addView(startButton, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6) })
+                times.addView(endButton, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(6) })
+                schedule.add(times, 4)
+                dial.onChange = { start, end ->
+                    startButton.text = "START\n${formatTime(start)}"; endButton.text = "END\n${formatTime(end)}"
+                    persist { it.copy(start = start, end = end) }
+                }
+                schedule.add(text("Drag either handle, or tap a time for precise control. Overnight schedules are supported.", 12f, NightColors.secondary), 12)
             }
         }
+        if (config.mode != ScheduleMode.ALWAYS && !SleepScheduler.hasTimingPermission(this)) {
+            schedule.add(button("Allow scheduled changes") { openTimingPermission() }, 14)
+            schedule.add(text("Let Android start and stop wind-down at your chosen times, even when the app is closed.", 12f, NightColors.secondary), 6)
+        }
+        val sound = card("A little quieter", "Keep the quiet steps below Android’s usual media minimum.")
+        toggle(sound, "Quiet Dial", "Enable finer media-volume control during wind-down.", config.quiet) { checked -> persist(true) { it.copy(quiet = checked) } }
+        toggle(sound, "Quiet steps with volume-down", "At the lowest step, keep reducing sound instead of muting. Use Mute for silence.", config.volumeDown, config.quiet) { checked -> persist { it.copy(volumeDown = checked) } }
+        if (config.quiet) {
+            val active = ControlLive.running && SleepSchedule.plan(config).active
+            val gain = if (Prefs.isLevelInQuietZone(this)) ((-Prefs.getAttenuation(this) / 5).toInt() * 5).coerceIn(0, 30) else 0
+            val (s, value) = slider(sound, "Extra attenuation", gain, 30, " dB", 5f, NightColors.lavender) {
+                command(VolumeControlService.ACTION_SET_GAIN) { putExtra("db", -it.toFloat()) }
+            }
+            s.isEnabled = active; soundSlider = s; soundValue = value
+            s.addOnSliderTouchListener(object : Slider.OnSliderTouchListener {
+                override fun onStartTrackingTouch(slider: Slider) { adjustingSound = true }
+                override fun onStopTrackingTouch(slider: Slider) { adjustingSound = false }
+            })
+            soundHint = text("", 12f, NightColors.secondary)
+            sound.add(soundHint!!, 4)
+            sound.add(button("Mute / unmute media") { command(VolumeControlService.ACTION_MUTE) }.apply {
+                isEnabled = active; alpha = if (active) 1f else .45f
+            }, 12)
+            toggle(sound, "Floating controls", "A compact − / + control over other apps.", config.bubble) { checked -> persist { it.copy(bubble = checked) } }
+            bluetoothCalibration(sound, active)
+        }
+        val footer = LinearLayout(this).apply { gravity = Gravity.CENTER }
+        footer.addView(button("About & privacy") { about() }, LinearLayout.LayoutParams(0, -2, 1f))
+        footer.addView(button("Licenses") { startActivity(Intent(this, LicensesActivity::class.java)) }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(8) })
+        root.add(footer, 22)
+        root.add(text("Less light is the goal. Put your phone away when you’re ready to sleep.", 12f, NightColors.secondary).apply { gravity = Gravity.CENTER }, 8)
+        refreshStatus(); scroll.post { scroll.scrollTo(0, y) }
     }
-
-    // -------------------------------------------------------------------------
-    // Grandfather tip-jar card (1.5.0) — play flavor only: the CTA points at
-    // Google Play, which means nothing to an F-Droid user.
-    // -------------------------------------------------------------------------
-
-    /**
-     * @return true while the card is due, which also holds the auto-launch-and-finish
-     * fast path open for one visit — otherwise the activity closes itself before the
-     * grandfathered user could ever see the card.
-     */
-    private fun setupTipjarCard(): Boolean {
-        // FIRST, unconditionally: this function has early returns for the grandfathered
-        // and just-bought paths, and a line left over from the trial would greet a buyer
-        // with a promise about a week they have already finished paying to end.
-        setupTrialOrientation()
-        val card = findViewById<View>(R.id.gv_tipjar_card)
-
-        // A buyer, a grandfathered user and someone on the trial are mutually exclusive, so
-        // one card slot serves all three. The purchase confirmation takes priority: it is
-        // the one a person paid for.
-        //
-        // The condition is a PAID unlock (the in-app purchase or the key), never
-        // [ProAccess.isPro] — that is also true during the trial, and thanking someone for a
-        // purchase they have not made is the fastest way to lose the sale that was still coming.
-        if (BuildConfig.FLAVOR == "play" && !Entitlement.isGrandfathered(this) &&
-            !Prefs.wasUnlockAcknowledged(this) && ProAccess.hasPaidUnlock(this)
-        ) {
-            card.visibility = View.VISIBLE
-            findViewById<TextView>(R.id.tv_card_title).setText(R.string.gv_unlocked_title)
-            findViewById<TextView>(R.id.tv_card_body).setText(R.string.gv_unlocked_body)
-            findViewById<TextView>(R.id.btn_tipjar_support).visibility = View.GONE
-            findViewById<View>(R.id.btn_card_restore).visibility = View.GONE
-            findViewById<TextView>(R.id.btn_tipjar_dismiss).apply {
-                visibility = View.VISIBLE
-                setText(R.string.gv_unlocked_dismiss)
-                setOnClickListener {
-                    Prefs.setUnlockAcknowledged(this@MainActivity)
-                    card.visibility = View.GONE
+    private fun refreshStatus() {
+        val config = SleepSettings.read(this); val plan = SleepSchedule.plan(config)
+        status?.text = when {
+            !config.enabled -> "Ready when you are"
+            !SleepScheduler.ready(this, config) -> "One more step to get ready"
+            plan.message != null -> "Your schedule needs a detail"
+            plan.active && ControlLive.running -> "Wind-down is on"
+            plan.active -> "Starting your evening settings"
+            else -> "Your evening is scheduled"
+        }
+        statusDetail?.text = when {
+            !config.enabled -> "Your light and sound settings are saved."
+            !SleepScheduler.ready(this, config) -> "Allow the access shown below to activate your settings."
+            plan.message != null -> plan.message
+            plan.nextChange != null -> {
+                val local = plan.nextChange.atZone(ZoneId.systemDefault())
+                "${if (plan.active) "Until" else "Begins"} ${formatTime(local.hour * 60 + local.minute)} · ${if (config.mode == ScheduleMode.SUN) "sunset to sunrise" else "your schedule"}"
+            }
+            else -> "Until you pause · ${config.dim}% dim · ${config.warmth}% warmth"
+        }
+        if (!adjustingSound) {
+            val gain = if (Prefs.isLevelInQuietZone(this)) (-Prefs.getAttenuation(this)).coerceIn(0f, 30f) else 0f
+            soundSlider?.let { if (kotlin.math.abs(it.value - gain) > .1f) it.value = (gain / 5).toInt() * 5f }
+            soundValue?.text = "${gain.toInt()} dB"
+        }
+        soundHint?.text = when {
+            !ControlLive.running || !plan.active -> "Begin wind-down to adjust the sound."
+            ControlLive.effect == ControlLive.Effect.NONE -> "This device did not provide an audio effect. Quiet steps may not change the sound."
+            StreamVolumeController(this).inCellularCall() -> "Quiet steps cannot change cellular-call audio."
+            ControlLive.effect == ControlLive.Effect.FALLBACK -> "Compatibility audio mode. Attenuation support varies by device."
+            else -> "Attenuation below the audible minimum. Audio-effect support varies by device."
+        }
+    }
+    private fun enable() {
+        pendingEnable = true
+        if (!PermissionHelper.canDrawOverlays(this)) { overlayPermission.launch(PermissionHelper.overlayPermissionIntent(this)); return }
+        if (SleepSettings.read(this).mode != ScheduleMode.ALWAYS && !SleepScheduler.hasTimingPermission(this)) { openTimingPermission(); return }
+        pendingEnable = false
+        SleepSettings.update(this) { it.copy(enabled = true) }; SleepScheduler.reconcile(this); render()
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+    private fun openTimingPermission() {
+        if (Build.VERSION.SDK_INT >= 31) timingPermission.launch(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:$packageName")))
+    }
+    private fun pickTime(start: Boolean) {
+        val cfg = SleepSettings.read(this); val time = if (start) cfg.start else cfg.end
+        TimePickerDialog(this, { _, hour, minute ->
+            val value = hour * 60 + minute
+            if (value == if (start) cfg.end else cfg.start) toast("Choose different start and end times")
+            else persist(true) { if (start) it.copy(start = value) else it.copy(end = value) }
+        }, time / 60, time % 60, android.text.format.DateFormat.is24HourFormat(this)).show()
+    }
+    private fun command(action: String, extras: Intent.() -> Unit = {}) {
+        if (!ControlLive.running || !SleepSettings.read(this).quiet) { toast("Turn on wind-down and Quiet Dial first"); return }
+        startService(Intent(this, VolumeControlService::class.java).setAction(action).apply(extras))
+    }
+    private fun bluetoothCalibration(parent: LinearLayout, active: Boolean) {
+        val volume = StreamVolumeController(this)
+        if (!active || volume.inCall()) return
+        val name = volume.activeBluetoothName() ?: return
+        val am = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
+        val min = maxOf(1, am.getStreamMinVolume(android.media.AudioManager.STREAM_MUSIC)); val max = volume.calibrationMaxIndex()
+        parent.add(button("Headphone setup · $name") {
+            var selected = Prefs.getBluetoothFloor(this, name).coerceIn(min, max)
+            val body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(8), dp(24), dp(8)) }
+            body.add(text("With audio playing, find the first step you can hear. Previews use normal gain and are limited to steps $min–$max. The setting is saved for this headset name.", 14f, NightColors.secondary))
+            val value = text("Step $selected", 24f, NightColors.amber, true).apply { gravity = Gravity.CENTER }
+            body.add(value, 16)
+            val row = LinearLayout(this); val down = button("−") {}; val up = button("+") {}
+            fun preview(delta: Int) {
+                if (volume.activeBluetoothName() != name || volume.inCall()) { toast("The audio route changed; reopen setup"); return }
+                selected = (selected + delta).coerceIn(min, max); value.text = "Step $selected"
+                down.isEnabled = selected > min; up.isEnabled = selected < max
+                command(VolumeControlService.ACTION_CALIBRATE_BLUETOOTH_FLOOR) {
+                    putExtra(VolumeControlService.EXTRA_BLUETOOTH_NAME, name); putExtra(VolumeControlService.EXTRA_BLUETOOTH_FLOOR, selected)
                 }
             }
-            return true
-        }
-
-        // 1.7.0: the support card for people who keep everything free moved to "Your access"
-        // (InfoSheetActivity), which the icon and the notification now open. One invitation in
-        // one place; this screen no longer holds a long-time user back on its way to the dial.
-        return setupTrialCard(card)
+            down.setOnClickListener { preview(-1) }; up.setOnClickListener { preview(1) }
+            down.isEnabled = selected > min; up.isEnabled = selected < max
+            row.addView(down, LinearLayout.LayoutParams(0, dp(50), 1f)); row.addView(up, LinearLayout.LayoutParams(0, dp(50), 1f).apply { marginStart = dp(12) })
+            body.add(row, 14)
+            androidx.appcompat.app.AlertDialog.Builder(this).setTitle("First audible step").setView(body).setPositiveButton("Done", null).show()
+        }, 10)
     }
-
-    /**
-     * The quiet half of the trial story: one line, no buttons, shown on the days the
-     * countdown card stays silent.
-     *
-     * It exists because the ONLY places a new user was previously told about the week
-     * were the store listing and the Terms, and nobody reads the Terms. Finding a locked
-     * dial on day eight with no prior notice is the review that costs the most, and it is
-     * free to prevent here: MainActivity is already open and being read while permissions
-     * are granted, so this interrupts nothing.
-     *
-     * Deliberately NOT an offer. No price, no CTA, nothing to tap. The days that need to
-     * sell are 3, 2 and 1, and the card handles those.
-     */
-    private fun setupTrialOrientation() {
-        val line = findViewById<TextView>(R.id.tv_trial_orientation) ?: return
-        // 1.7.0: the whole deal in one sentence, with the real number of days: everything is
-        // open, then the dial LOCKS, then one payment unlocks it for good. The old line said
-        // "one payment keeps it" and never said what happens without it. No price here, by the
-        // owner's decision: the amount is one tap away in "Your access".
-        // Shown on every day of the free week (it used to stop three days before the end,
-        // exactly when it matters most); the countdown card adds the button on those days.
-        if (!AccessState.of(this).onTrial) { line.visibility = View.GONE; return }
-        line.text = if (Entitlement.isInGrace(this)) {
-            // A first open that found the week already over: 24 hours, once, said plainly.
-            // This screen IS the last-day warning for that person, so the sheet that would
-            // repeat it on their very first start (in place of the tour) and the last-day
-            // note are both marked as said.
-            if (!Prefs.wasLastDayNudgeShown(this)) Prefs.setLastDayNudgeShown(this)
-            getString(R.string.gv_trial_grace)
-        } else {
-            val days = Entitlement.daysLeftInTrial(this)
-            resources.getQuantityString(R.plurals.gv_trial_orientation_days, days, days)
-        }
-        line.visibility = View.VISIBLE
+    private fun requestLocation() {
+        if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) locate()
+        else locationPermission.launch(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION))
     }
-
-
-    /**
-     * The trial's own card, in the same slot. Two states, and the honest thing in both is to
-     * say where the person stands before they discover it by tapping something that no longer
-     * works.
-     *
-     *  RUNNING — shown in the last [TRIAL_CARD_FROM_DAYS] days only, once per day. Earlier
-     *  than that it is a countdown nobody asked for on an app they are still deciding about.
-     *
-     *  OVER — shown every launch, with no dismiss. The app genuinely does nothing at this
-     *  point, so a screen that quietly returned to the dial would read as a broken app rather
-     *  than a finished trial.
-     *
-     * @return true while the card holds the auto-launch-and-finish fast path open.
-     */
-    private fun setupTrialCard(card: View): Boolean {
-        if (BuildConfig.FLAVOR != "play") { card.visibility = View.GONE; return false }
-
-        val title   = findViewById<TextView>(R.id.tv_card_title)
-        val body    = findViewById<TextView>(R.id.tv_card_body)
-        val support = findViewById<TextView>(R.id.btn_tipjar_support)
-        val dismiss = findViewById<TextView>(R.id.btn_tipjar_dismiss)
-        val restore = findViewById<TextView>(R.id.btn_card_restore)
-        restore.visibility = View.GONE
-        // 1.7.0: a payment Google Play is still confirming. The buy button would invite a
-        // second order for something already ordered, so it steps aside for the one sentence.
-        val pending = Entitlement.isPurchasePending(this)
-
-        // Both questions are asked through ProAccess, which excludes a grandfathered user and
-        // a buyer by construction. Asking Entitlement directly would tell a grandfathered
-        // user their trial is over, which is both false and alarming.
-        if (ProAccess.isOnTrial(this)) {
-            val daysLeft = Entitlement.daysLeftInTrial(this)
-            // 1.7.0: never on the very first screen. Before the Terms are accepted the line under
-            // the title already states the whole arrangement, and a countdown card with a buy
-            // button there pushed "Agree and continue" off the screen (seen on a late first open,
-            // which starts with one day). The card's daily turn is not spent either.
-            if (!hasAcceptedTerms()) { card.visibility = View.GONE; return false }
-            val shownToday = Prefs.getTrialCardShownForDay(this) == daysLeft &&
-                !trialCardRestored && !trialCardShowing
-            if (daysLeft > TRIAL_CARD_FROM_DAYS || shownToday) {
-                card.visibility = View.GONE
-                return false
-            }
-            Prefs.setTrialCardShownForDay(this, daysLeft)
-            trialCardShowing = true
-            card.visibility = View.VISIBLE
-            title.text = resources.getQuantityString(R.plurals.gv_trial_days_left, daysLeft, daysLeft)
-            body.setText(if (pending) R.string.gv_purchase_pending else R.string.gv_trial_body)
-            wireBuyButton(support, pending)
-            dismiss.visibility = View.VISIBLE
-            dismiss.setText(R.string.gv_trial_dismiss)
-            // 1.7.0: "Later" means "not now, take me to the dial". It used to hide the card and
-            // leave the person on the setup screen, one more tap away from what they came for.
-            dismiss.setOnClickListener {
-                trialCardShowing = false
-                card.visibility = View.GONE
-                if (isSetUp()) launchService()
-            }
-            return true
-        }
-
-        if (!ProAccess.isTrialExpired(this)) { card.visibility = View.GONE; return false }
-
-        card.visibility = View.VISIBLE
-        title.setText(R.string.gv_trial_over_title)
-        body.setText(if (pending) R.string.gv_purchase_pending else R.string.gv_trial_over_body)
-        wireBuyButton(support, pending)
-        dismiss.visibility = View.GONE
-        // 1.7.0: the locked screen offered a purchase and no way to say "I already paid".
-        restore.visibility = View.VISIBLE
-        restore.setOnClickListener { PurchaseFlow.restore(this) { setupTipjarCard(); updateStatus() } }
-        return true
-    }
-
-    /**
-     * The card's buy button (1.7.0): hidden while a payment is pending, and while Google Play
-     * is opening it says so and takes no second tap. Every outcome gives it back.
-     */
-    private fun wireBuyButton(button: TextView, pending: Boolean) {
-        if (pending) { button.visibility = View.GONE; return }
-        button.visibility = View.VISIBLE
-        // 1.6.4: the button says what it does and, once Play has answered, what it costs
-        // ("See the price" made the reader open a purchase window to learn a number).
-        button.text = PurchaseFlow.ctaLabel(this)
-        button.isEnabled = !PurchaseFlow.isInFlight()
-        refreshCardPrice(button)
-        button.setOnClickListener {
-            if (PurchaseFlow.isInFlight()) return@setOnClickListener
-            PurchaseFlow.start(
-                this,
-                onSettled = {
-                    if (!isFinishing && !isDestroyed) {
-                        button.isEnabled = true
-                        button.text = PurchaseFlow.ctaLabel(this)
-                    }
-                },
-                onUnlocked = { if (!isFinishing && !isDestroyed) { setupTipjarCard(); updateStatus() } }
-            )
-            button.isEnabled = false
-            button.text = PurchaseFlow.ctaLabel(this)
-        }
-    }
-
-    /**
-     * 1.6.4: asks Play for the price and relabels the card's button when it arrives. Only the
-     * label changes; re-running the card setup would spend the once-per-day guard of the
-     * trial card and hide it.
-     */
-    private fun refreshCardPrice(button: TextView) {
-        BillingManager.refreshPrice(this) {
-            if (!isFinishing && !isDestroyed) button.text = PurchaseFlow.ctaLabel(this)
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // Consent gate (clickwrap) — mandatory legal component, see A2b/A2c
-    // -------------------------------------------------------------------------
-
-    private fun hasAcceptedTerms(): Boolean =
-        Prefs.getTermsAcceptedVersion(this) >= TERMS_VERSION
-
-    /**
-     * Wires the consent block. Until the current Terms version is accepted, the permission
-     * CTAs stay disabled, so nothing is granted and no service starts without an active
-     * agreement. Once accepted, the block disappears and the flow is exactly as before.
-     */
-    private fun setupConsentGate() {
-        val block = findViewById<View>(R.id.gv_consent_block)
-        if (hasAcceptedTerms()) {
-            block.visibility = View.GONE
-            return
-        }
-        block.visibility = View.VISIBLE
-
-        findViewById<TextView>(R.id.tv_link_terms).setOnClickListener { openUrl(URL_TERMS) }
-        findViewById<TextView>(R.id.tv_link_privacy).setOnClickListener { openUrl(URL_PRIVACY) }
-
-        findViewById<Button>(R.id.btn_accept_terms).setOnClickListener {
-            Prefs.setTermsAcceptedVersion(this, TERMS_VERSION)
-            block.visibility = View.GONE
-            updateStatus()
-        }
-    }
-
-    private fun openUrl(url: String) {
-        runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
-            .onFailure { Toast.makeText(this, url, Toast.LENGTH_LONG).show() }
-    }
-
-    // -------------------------------------------------------------------------
-    // Launch sequence
-    // -------------------------------------------------------------------------
-
-    private fun launchService() {
-        // 1.5.3: this also runs as the in-app review's completion callback, which Play can
-        // deliver after the user has already left and the activity is destroyed. The result
-        // launcher is unregistered by then, and launch() threw IllegalStateException (2 users
-        // in 28 days, every 1.4.x/1.5.x version). A destroyed screen can show no dialog, so the
-        // control is started directly and the permission question waits for the next visit.
-        if (isFinishing || isDestroyed) {
-            runCatching {
-                applicationContext.startForegroundService(Intent(applicationContext, VolumeControlService::class.java))
-            }.onFailure { Log.w("GranularVolume", "launchService after destroy: ${it.message}") }
-            return
-        }
-        // On Android 13+: request notification permission so the FGS notification
-        // is visible immediately. The service runs regardless of the user's choice.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            try {
-                notificationPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            } catch (e: IllegalStateException) {
-                // Belt and braces for the same race: never crash the screen over a permission prompt.
-                Log.w("GranularVolume", "notification permission prompt unavailable: ${e.message}")
-                startServiceAndOfferTile()
-            }
-        } else {
-            startServiceAndOfferTile()
-        }
-    }
-
-    private fun startServiceAndOfferTile() {
-        // On Android 13+: show the system "Add to Quick Settings" dialog once.
-        val offerTile = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !Prefs.wasQsTileOffered(this)
-        // 1.7.0: when that dialog is about to open, the service is told to hold the tour. It
-        // used to start 700 ms after the dial appeared, underneath the system dialog, and its
-        // first card was over before anyone could read it. The tour is released below, when
-        // the dialog has been answered.
-        startForegroundService(
-            Intent(this, VolumeControlService::class.java)
-                .putExtra(VolumeControlService.EXTRA_HOLD_TOUR, offerTile)
-        )
-        Toast.makeText(this, R.string.gv_toast_started, Toast.LENGTH_SHORT).show()
-        if (offerTile) offerQsTile() else finish()
-    }
-
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    private fun offerQsTile() {
-        Prefs.setQsTileOffered(this, true)
-        val released = java.util.concurrent.atomic.AtomicBoolean(false)
-        val release = {
-            if (released.compareAndSet(false, true)) {
-                runCatching {
-                    applicationContext.startService(
-                        Intent(applicationContext, VolumeControlService::class.java)
-                            .setAction(VolumeControlService.ACTION_TOUR_IF_DUE)
-                    )
-                }
-                if (!isFinishing && !isDestroyed) finish()
-            }
-        }
+    private fun locate() {
+        val manager = getSystemService(LOCATION_SERVICE) as LocationManager
         try {
-            getSystemService(StatusBarManager::class.java).requestAddTileService(
-                ComponentName(this, GranularVolumeTileService::class.java),
-                getString(R.string.app_name),
-                Icon.createWithResource(this, R.drawable.ic_qs_tile),
-                mainExecutor
-            ) { release() }
-        } catch (e: RuntimeException) {
-            // No status bar service to ask (some tablets and TV builds): nothing to wait for.
-            Log.w("GranularVolume", "Add-tile dialog unavailable: ${e.message}")
-            release()
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // UI
-    // -------------------------------------------------------------------------
-
-    private fun updateStatus() {
-        val overlayOk = PermissionHelper.canDrawOverlays(this)
-        val audioOk   = PermissionHelper.hasModifyAudioSettings(this)
-        val consented = hasAcceptedTerms()
-
-        renderStatePill(findViewById(R.id.tv_overlay_state), overlayOk)
-        renderStatePill(findViewById(R.id.tv_audio_state), audioOk)
-        renderNotificationRow()
-        renderBatteryHint()
-
-        // 1.7.0: the hint follows what is actually in the way, in order. Before consent both
-        // buttons are disabled and the old hint talked about the overlay; when the dial is
-        // locked the old hint said "You're all set, start the control", which starts nothing
-        // the reader can use.
-        val state = AccessState.of(this)
-        findViewById<TextView>(R.id.tv_hint).text = getString(
-            when {
-                !consented -> R.string.gv_hint_consent
-                !overlayOk && !OVERLAY_OPENS_A_LIST -> R.string.gv_hint_grant_direct
-                !overlayOk -> R.string.gv_hint_grant_first
-                state == AccessState.LOCKED -> R.string.gv_hint_locked
-                else -> R.string.gv_hint_ready
+            val providers = manager.getProviders(true).filter {
+                it != LocationManager.GPS_PROVIDER || checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
             }
-        )
-
-        // Both CTAs stay disabled until the Terms are actively accepted (clickwrap).
-        // 1.7.0: one button at a time, the one for the step the user is on. Showing both, one
-        // of them always disabled, pushed "Start" below the fold once the screen gained a row.
-        // 1.7.2: back from Android's list with the switch still off. The card says so and
-        // stays; the hint steps aside for it and the button offers the second try.
-        val retry = consented && !overlayOk && overlayTried
-        val retryCard = findViewById<View>(R.id.gv_overlay_retry_card)
-        val retryWasShown = retryCard.visibility == View.VISIBLE
-        retryCard.visibility = if (retry) View.VISIBLE else View.GONE
-        findViewById<View>(R.id.tv_hint).visibility = if (retry) View.GONE else View.VISIBLE
-        findViewById<Button>(R.id.btn_grant_overlay).apply {
-            // The card carries its own button for the second try, so there is one button
-            // on the screen for this step, and it is next to the words that explain it.
-            visibility = if (overlayOk || retry) View.GONE else View.VISIBLE
-            isEnabled = consented && !overlayOk
+            val last = providers.mapNotNull { manager.getLastKnownLocation(it) }.maxByOrNull { it.time }
+            if (last != null && System.currentTimeMillis() - last.time < 86_400_000) {
+                persist(true) { it.copy(latitude = last.latitude, longitude = last.longitude) }; return
+            }
+            val provider = providers.firstOrNull { it == LocationManager.NETWORK_PROVIDER } ?: providers.firstOrNull { it == LocationManager.GPS_PROVIDER }
+            if (provider == null) { toast("Turn on location, or enter coordinates manually"); return }
+            locationRequest?.cancel(); val cancellation = CancellationSignal(); locationRequest = cancellation
+            toast("Finding your location…")
+            LocationManagerCompat.getCurrentLocation(manager, provider, cancellation, ContextCompat.getMainExecutor(this)) { location ->
+                if (location == null) toast("Location unavailable; you can enter it manually")
+                else if (!isDestroyed) persist(true) { it.copy(latitude = location.latitude, longitude = location.longitude) }
+            }
+            handler.postDelayed({ cancellation.cancel() }, 30_000)
+        } catch (_: SecurityException) { toast("Location access was not granted") }
+    }
+    private fun locationDialog() {
+        val cfg = SleepSettings.read(this)
+        val form = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), 0, dp(24), 0) }
+        fun input(hintText: String, value: Double?) = EditText(this).apply {
+            hint = hintText; inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED
+            setText(value?.toString() ?: ""); setSingleLine()
         }
-        // The screen is taller than most phones once the card is added. Bring the card into
-        // view when it appears, or the reader comes back to a screen that looks unchanged.
-        if (retry && !retryWasShown) {
-            val scroll = findViewById<android.widget.ScrollView>(R.id.gv_main_scroll)
-            scroll.post { scroll.smoothScrollTo(0, retryCard.top - (16 * resources.displayMetrics.density).toInt()) }
-        }
-        findViewById<Button>(R.id.btn_start_service).apply {
-            visibility = if (overlayOk) View.VISIBLE else View.GONE
-            isEnabled = consented && overlayOk
-        }
+        val lat = input("Latitude (−90 to 90)", cfg.latitude); val lon = input("Longitude (−180 to 180)", cfg.longitude)
+        form.add(lat); form.add(lon, 8)
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Sun times location").setView(form)
+            .setNegativeButton("Cancel", null).setPositiveButton("Save", null).create()
+        dialog.setOnShowListener { dialog.getButton(-1).setOnClickListener {
+            val a = lat.text.toString().toDoubleOrNull(); val b = lon.text.toString().toDoubleOrNull()
+            if (a == null || b == null || !a.isFinite() || !b.isFinite() || a !in -90.0..90.0 || b !in -180.0..180.0) {
+                toast("Enter valid latitude and longitude"); return@setOnClickListener
+            }
+            persist(true) { it.copy(latitude = a, longitude = b) }; dialog.dismiss()
+        } }; dialog.show()
     }
-
-    /**
-     * The third row (1.7.0). Optional, and worded as optional: the control works without it.
-     * The pill is neutral when off, never the amber "Needed" of the two real requirements.
-     */
-    private fun renderNotificationRow() {
-        val on = NotificationManagerCompat.from(this).areNotificationsEnabled()
-        findViewById<TextView>(R.id.tv_notif_desc).setText(
-            if (AccessState.of(this).onTrial) R.string.gv_perm_notif_desc_trial
-            else R.string.gv_perm_notif_desc
-        )
-        val pill = findViewById<TextView>(R.id.tv_notif_state)
-        pill.setText(if (on) R.string.gv_state_on else R.string.gv_state_off)
-        pill.setTextColor(ContextCompat.getColor(this, if (on) R.color.gv_success else R.color.gv_text_secondary))
-        pill.backgroundTintList = ColorStateList.valueOf(
-            ContextCompat.getColor(this, if (on) R.color.gv_success_dim else R.color.gv_surface_stroke)
-        )
+    private fun about() {
+        androidx.appcompat.app.AlertDialog.Builder(this).setTitle("A quieter kind of evening")
+            .setMessage("Quiet Night is a free, open-source fork of Granular Volume by Rzuss.\n\nEverything stays on your device. No ads, accounts, tracking, or internet permission. Location is optional and saved only to calculate sun times; there is no background location tracking.\n\nDimming bright light and reducing blue light can support an evening routine. A screen tint is not a sleep treatment. Some protected system screens hide overlays.\n\nGPL-3.0. Source: github.com/JaredTweed/granular-volume")
+            .setNeutralButton("Source code") { _, _ ->
+                runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/JaredTweed/granular-volume"))) }
+                    .onFailure { toast("Source: github.com/JaredTweed/granular-volume") }
+            }.setPositiveButton("Done", null).show()
     }
-
-    /** Shown only while the system may put the app to sleep (1.7.0). A statement and a Help link. */
-    private fun renderBatteryHint() {
-        val exempt = runCatching {
-            getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
-        }.getOrDefault(true)
-        findViewById<View>(R.id.tv_battery_hint).visibility = if (exempt) View.GONE else View.VISIBLE
-    }
-
-    private fun renderStatePill(pill: TextView, granted: Boolean) {
-        val textRes = if (granted) R.string.gv_state_granted else R.string.gv_state_needed
-        val fg = if (granted) R.color.gv_success else R.color.gv_warning
-        val bg = if (granted) R.color.gv_success_dim else R.color.gv_warning_dim
-        pill.text = getString(textRes)
-        pill.setTextColor(ContextCompat.getColor(this, fg))
-        pill.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, bg))
-    }
+    private fun toast(message: String) = Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
 }

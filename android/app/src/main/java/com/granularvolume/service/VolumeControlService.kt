@@ -1,863 +1,141 @@
 package com.granularvolume.service
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
-import android.app.Service
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
+import android.app.*
+import android.content.*
 import android.content.pm.ServiceInfo
-import android.media.AudioDeviceCallback
-import android.media.AudioDeviceInfo
-import android.media.AudioManager
-import android.os.Build
-import android.os.Handler
-import android.os.IBinder
-import android.os.Looper
-import android.os.PatternMatcher
-import android.os.SystemClock
-import android.provider.Settings
-import android.content.res.Configuration
-import android.util.Log
-import android.widget.Toast
+import android.media.*
+import android.os.*
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.granularvolume.MainActivity
 import com.granularvolume.R
-import com.granularvolume.InfoSheetActivity
-import com.granularvolume.PaywallActivity
-import com.granularvolume.audio.AudioController
-import com.granularvolume.util.ProAccess
-import com.granularvolume.util.TrialNotices
-import com.granularvolume.audio.FullRangeCoordinator
-import com.granularvolume.audio.StreamVolumeController
-import com.granularvolume.overlay.OverlayManager
-import com.granularvolume.util.Entitlement
-import com.granularvolume.util.AccessState
-import com.granularvolume.util.BillingManager
-import com.granularvolume.util.ControlLive
-import com.granularvolume.util.UpdateCheck
-import com.granularvolume.util.KeyCheck
-import com.granularvolume.util.Prefs
-import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.launch
-import kotlin.math.abs
+import com.granularvolume.audio.*
+import com.granularvolume.sleep.*
+import com.granularvolume.util.*
 
-/**
- * Foreground service that owns the AudioController and OverlayManager lifecycle.
- *
- * Lifecycle:
- *   onCreate() -> initialize audio + overlay
- *   onDestroy() -> release audio + hide overlay + cancel coroutines
- *
- * This service is START_STICKY — the OS will restart it if killed.
- */
+/** Owns only the active wind-down session. AlarmManager owns future start/stop boundaries. */
 class VolumeControlService : Service() {
-
-    private val tag = "GranularVolume:Service"
-
     companion object {
-        private const val CHANNEL_ID   = "gv_volume_control"
-        private const val NOTIFICATION_ID = 1001
         const val ACTION_STOP = "com.granularvolume.ACTION_STOP"
-
-        /**
-         * The key app just appeared. Sent by the paywall sheet when it returns from the
-         * store and finds the key installed, so ownership takes effect in that second
-         * rather than at the next service start.
-         * Since 2026-09-10 this is the FALLBACK door: the service hears the install itself
-         * (see keyInstalledReceiver), whatever screen the buyer is on.
-         */
-        const val ACTION_KEY_INSTALLED = "com.granularvolume.ACTION_KEY_INSTALLED"
-        /** 1.5.1: replay the feature tour, sent by the info sheet's "Show the tour" link. */
-        const val ACTION_SHOW_TOUR = "com.granularvolume.ACTION_SHOW_TOUR"
+        const val ACTION_SET_GAIN = "quietnight.SET_GAIN"
+        const val ACTION_QUIETER = "quietnight.QUIETER"
+        const val ACTION_LOUDER = "quietnight.LOUDER"
+        const val ACTION_MUTE = "quietnight.MUTE"
         const val ACTION_CALIBRATE_BLUETOOTH_FLOOR = "com.granularvolume.ACTION_CALIBRATE_BLUETOOTH_FLOOR"
         const val EXTRA_BLUETOOTH_NAME = "bluetooth_name"
         const val EXTRA_BLUETOOTH_FLOOR = "bluetooth_floor"
-
-        /**
-         * 1.7.0: "the first-run dialogs are answered, show the tour now if it is due". Sent by the
-         * setup screen after the system's Add-tile dialog closes. Until 1.7.0 the tour started
-         * 700 ms after the service did, underneath that dialog, and its first card was read by
-         * nobody.
-         */
-        const val ACTION_TOUR_IF_DUE = "com.granularvolume.ACTION_TOUR_IF_DUE"
-
-        /** Carried on a start that will be followed by [ACTION_TOUR_IF_DUE]: hold the tour until then. */
-        const val EXTRA_HOLD_TOUR = "com.granularvolume.EXTRA_HOLD_TOUR"
-
-        /**
-         * 1.7.0: where the user stands may have changed with no gesture behind it (the free week
-         * just ended, or a sheet found a purchase). Repaints the dial and the notification; it
-         * never changes the sound.
-         */
-        const val ACTION_ACCESS_CHANGED = "com.granularvolume.ACTION_ACCESS_CHANGED"
-
-        /** How long a refused quiet step is still "what the buyer asked for" (1.7.0). */
-        private const val PENDING_STEP_TTL_MS = 10L * 60L * 1000L
-
-        /**
-         * Boot-restore starts carry this so the purchase sheet stays closed. A boot is
-         * the MACHINE resuming, not the user opening the control, and a sales sheet
-         * over the launcher seconds after power-on is the exact adware gesture this
-         * app must never make.
-         */
-        const val EXTRA_FROM_BOOT = "com.granularvolume.EXTRA_FROM_BOOT"
-
-        /** 1.6.2: grace before the last-day notice, so a start's own last-day sheet goes first. */
-        private const val LAST_DAY_NOTICE_DELAY_MS = 4000L
-
-        /** How long after the dial is up the billing warm-up may start (1.6.0). */
-        private const val BILLING_PREFETCH_DELAY_MS = 1500L
-        private const val UPDATE_ASK_GAP_MS = 60L * 60L * 1000L
-
-        /** The paid key app. Must match KeyCheck and the play manifest's <queries> entry. */
-        private const val KEY_APP_PACKAGE = "com.granularvolume.key"
-
-        // Hidden-but-stable system broadcast + extras (no public constants exist for these).
-        private const val VOLUME_CHANGED_ACTION = "android.media.VOLUME_CHANGED_ACTION"
-        private const val EXTRA_VOLUME_STREAM_TYPE = "android.media.EXTRA_VOLUME_STREAM_TYPE"
-        private const val EXTRA_VOLUME_STREAM_VALUE = "android.media.EXTRA_VOLUME_STREAM_VALUE"
-        private const val EXTRA_PREV_VOLUME_STREAM_VALUE = "android.media.EXTRA_PREV_VOLUME_STREAM_VALUE"
     }
-
-    private val serviceScope = CoroutineScope(
-        SupervisorJob() + Dispatchers.Default + CoroutineName("VolumeControlService")
-    )
-
-    private lateinit var audioController: AudioController
-    private lateinit var streamVolumeController: StreamVolumeController
-    private lateinit var coordinator: FullRangeCoordinator
-
-    /** Latched full-range verdict for this session. See [unlockedThisSession]. */
-    /**
-     * The quiet step a locked user reached for, kept only until the store round trip
-     * ends. In memory on purpose: the foreground service outlives the trip, and this
-     * must never outlive it, survive a restart, or travel in a backup.
-     */
-    private var pendingQuietStepDb: Float? = null
-
-    /** When [pendingQuietStepDb] was refused (uptime). A step refused long ago is not a request. */
-    private var pendingQuietStepAtMs = 0L
-
-    /**
-     * 1.7.0: the service was started without the "display over other apps" permission (revoked
-     * in system Settings, or a restart after it was revoked). Nothing was initialised; the
-     * start command sends a person to the setup screen and the service stops.
-     */
-    private var noOverlayPermission = false
-
-    private var sessionUnlocked = false
-
-    /**
-     * Whether this session has already answered the key. Seeded at start from what is
-     * installed, so a key that was there before the control started is never announced again
-     * (the cold return has its own one-time card in MainActivity, harness A27).
-     */
-    private var keyWelcomed = false
-    private lateinit var overlayManager: OverlayManager
-
-    /**
-     * VOLUME_CHANGED_ACTION is undocumented but long-stable and the standard listening
-     * mechanism for volume apps — spec accepts it with a real-hardware verification gate.
-     * Feeds the coordinator's absorb policy; our own writes are filtered there.
-     */
-    private val volumeChangeReceiver = object : BroadcastReceiver() {
+    private val handler = Handler(Looper.getMainLooper())
+    private var audio: AudioController? = null
+    private var volume: StreamVolumeController? = null
+    private var coordinator: FullRangeCoordinator? = null
+    private lateinit var overlay: NightOverlay
+    private lateinit var am: AudioManager
+    private val applyLater = Runnable { applyConfig() }
+    private val prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+        handler.removeCallbacks(applyLater); handler.postDelayed(applyLater, 80)
+    }
+    private val volumeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action != VOLUME_CHANGED_ACTION) return
-            val stream = intent.getIntExtra(EXTRA_VOLUME_STREAM_TYPE, -1)
-            if (stream < 0) return
-            val to = intent.getIntExtra(EXTRA_VOLUME_STREAM_VALUE, -1)
-            val from = intent.getIntExtra(EXTRA_PREV_VOLUME_STREAM_VALUE, to)
-            if (to < 0) return
-            coordinator.onExternalVolumeChange(stream, from, to)
-            askForUpdateIfDue()
+            if (intent?.action != "android.media.VOLUME_CHANGED_ACTION") return
+            val stream = intent.getIntExtra("android.media.EXTRA_VOLUME_STREAM_TYPE", -1)
+            val to = intent.getIntExtra("android.media.EXTRA_VOLUME_STREAM_VALUE", -1)
+            val from = intent.getIntExtra("android.media.EXTRA_PREV_VOLUME_STREAM_VALUE", to)
+            if (stream >= 0 && to >= 0) coordinator?.onExternalVolumeChange(stream, from, to)
         }
     }
-
-    /**
-     * The key app was installed. Listened for HERE, by the service that owns the dial, because
-     * the dial is what the buyer is looking at.
-     *
-     * Until 2026-09-10 the only signal was ACTION_KEY_INSTALLED, sent by the paywall or the
-     * info sheet when one of them RESUMED after the store. A buyer who pressed Home after the
-     * install, or tapped Open on the key, resumed neither, and kept looking at the dim ladder
-     * the lock had drawn until they happened to touch it. Found on the owner's own phone. The
-     * package broadcast arrives when the install completes, whatever the buyer does next. It
-     * needs the play manifest's <queries> entry for the key, the same one KeyCheck relies on.
-     */
-    private val keyInstalledReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action != Intent.ACTION_PACKAGE_ADDED) return
-            if (intent.data?.schemeSpecificPart != KEY_APP_PACKAGE) return
-            mainHandler.post { onKeyArrived("package-added") }
-        }
+    private val devices = object : AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(devices: Array<out AudioDeviceInfo>?) = routeChanged()
+        override fun onAudioDevicesRemoved(devices: Array<out AudioDeviceInfo>?) = routeChanged()
     }
-
-    /**
-     * The volume curve differs per output route — re-read it on every route change (spec).
-     * 1.4.6: a route change during a call also moves the voice audio to a different output,
-     * so the coordinator must re-place the effect chain there too (onRouteChanged is a
-     * no-op outside calls; media effects follow the music output by policy on their own).
-     */
-    private val deviceCallback = object : AudioDeviceCallback() {
-        override fun onAudioDevicesAdded(added: Array<out AudioDeviceInfo>?) {
-            coordinator.refreshCurve()
-            coordinator.onRouteChanged()
-        }
-        override fun onAudioDevicesRemoved(removed: Array<out AudioDeviceInfo>?) {
-            coordinator.refreshCurve()
-            coordinator.onRouteChanged()
-        }
-    }
-
-    // 1.4.2: the AudioPlaybackCallback that re-rendered the pill on playback start/stop is
-    // gone WITH its reason: the dial no longer flips between media and ring (it always drives
-    // media, matching AOSP's own no-playback default), so playback changes affect nothing the
-    // overlay renders.
-
-    /**
-     * 1.4.3: in a call the upper zone drives the voice-call stream, so the ladder must
-     * re-render when a call starts or ends. Control correctness never depends on this —
-     * activeStream() is evaluated live per use — this is display freshness only. The
-     * listener API exists from 31; on 28-30 the display catches up on the next volume
-     * broadcast or touch, which in practice is the moment the call audio starts.
-     */
-    private val modeListener =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
-            AudioManager.OnModeChangedListener { coordinator.onAudioModeChanged() }
-        else null
-
-    /**
-     * True only when the user explicitly asked to stop (notification Stop action or
-     * overlay dismiss). onDestroy also runs on device shutdown and OS kills, and those
-     * must NOT clear the boot-restore flag — otherwise BootReceiver always sees false
-     * and the control never comes back after a reboot.
-     */
-    @Volatile
-    private var stopRequestedByUser = false
-
-    private val mainHandler = Handler(Looper.getMainLooper())
+    private val modeListener = if (Build.VERSION.SDK_INT >= 31) AudioManager.OnModeChangedListener {
+        coordinator?.onAudioModeChanged()
+    } else null
+    private fun routeChanged() { coordinator?.refreshCurve(); coordinator?.onRouteChanged() }
 
     override fun onCreate() {
         super.onCreate()
-        Log.i(tag, "Service starting")
-
-        createNotificationChannel()
-        // API 29+: must pass foregroundServiceType explicitly or the OS throws on some devices.
-        // Hardened: never let an FGS-start exception kill the service before the overlay shows.
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(
-                    NOTIFICATION_ID,
-                    buildNotification(0f),
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-                )
-            } else {
-                startForeground(NOTIFICATION_ID, buildNotification(0f))
-            }
-        } catch (e: Exception) {
-            Log.e(tag, "startForeground failed: ${e.message}", e)
-        }
-
-        // 1.7.0: without the overlay permission there is no dial to show, and until now the
-        // service ran on with a live effect and nothing on screen (the window add threw, a toast
-        // named the exception, and the notification said the control was on). The start command
-        // decides what to tell the person; nothing below is initialised.
-        if (!Settings.canDrawOverlays(applicationContext)) {
-            noOverlayPermission = true
-            Log.w(tag, "Started without the overlay permission: stopping")
-            return
-        }
-
-        audioController = AudioController(applicationContext)
-        audioController.onEffectState = { available, preferred ->
-            ControlLive.effect = when {
-                !available -> ControlLive.Effect.NONE
-                preferred -> ControlLive.Effect.PREFERRED
-                else -> ControlLive.Effect.FALLBACK
-            }
-        }
-
-        // Full-range gate (1.5.0): decide grandfathering once, then latch the verdict for
-        // this session. Must precede initialize(), which routes the boot-restore level
-        // through the gate.
-        ProAccess.evaluateGrandfather(applicationContext)
-        // 1.7.0: our own update restarts the control, and it must come back as it was. A session
-        // that was holding its level after the free week ended is carried across that restart,
-        // and only that one: the receiver leaves a short-lived note, consumed here. A boot, a
-        // user stop and a system kill carry nothing, exactly as before.
-        val carried = Prefs.consumeSessionCarry(applicationContext)
-        sessionUnlocked = ProAccess.isPro(applicationContext) || carried
-        if (carried) Log.i(tag, "Session carried across an app update (free week over, level held)")
-        publishSession()
-        keyWelcomed = ProAccess.hasPaidUnlock(applicationContext)
-        audioController.proProvider = ::unlockedThisSession
-
-        streamVolumeController = StreamVolumeController(applicationContext)
-        coordinator = FullRangeCoordinator(applicationContext, audioController, streamVolumeController)
-        // 1.7.0: TWO gates, and they now differ. The AUDIO gate above is the latch: once a
-        // session is open its level is never taken away mid-session. The GESTURE gate is live:
-        // when the free week ends while the control is on, the level stays and the next
-        // gesture that would change it asks for the unlock. Until 1.7.0 both were the latch, so
-        // someone who never stopped the control met no purchase screen at all after day seven.
-        coordinator.lockedProvider = { !gesturesOpen() }
-        // Repaints must never open the latch (see lockedDisplayProvider). The same read-only
-        // rule the notification uses.
-        coordinator.lockedDisplayProvider = { lockDisplay() == FullRangeCoordinator.LockDisplay.LOCKED }
-        coordinator.lockDisplayProvider = ::lockDisplay
-        coordinator.onLockedInteraction = { pendingStep ->
-            mainHandler.post {
-                pendingQuietStepDb = pendingStep
-                pendingQuietStepAtMs = SystemClock.elapsedRealtime()
-                // Observable refusal: this is now the ONLY way a user gesture reaches the
-                // paywall, so the harness asserts on it instead of on the gate's clamp.
-                Log.i(tag, "Locked gesture refused (pendingQuietStep=$pendingStep), opening paywall, display=${lockDisplay()}")
-                // The refusal may be the first moment the dial learns the week is over: draw it.
-                refreshAccessSurfaces()
-                openPaywall()
-            }
-        }
-        coordinator.onQuietUnavailable = {
-            mainHandler.post {
-                // One short line instead of a bar that would move without the sound moving.
-                Log.i(tag, "Quiet step refused: cellular call carries no effect chain")
-                Toast.makeText(
-                    applicationContext,
-                    getString(R.string.gv_quiet_unavailable_in_call),
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
-        }
-        // The dial is the only surface a set-up user still sees, so it carries the one
-        // route to status, purchase and the legal texts. NEW_TASK because the caller is a
-        // service, exactly as with the paywall sheet.
-        overlayManager  = OverlayManager(
-            context         = applicationContext,
-            audioController = audioController,
-            coordinator     = coordinator,
-            scope           = serviceScope,
-            onDismiss       = {
-                stopRequestedByUser = true
-                stopSelf()
-            },
-            onInfo          = { openInfoSheet() }
-        )
-        // Wired HERE, after construction, never inside a callback. It sat inside the onInfo
-        // lambda until 2026-09-09, which compiled and meant it was only ever assigned after
-        // the user tapped the info button: the "session already running when the last day
-        // begins" warning (see onOpenedByUser) was dead for anyone driving the app from the
-        // dial. The harness was green over it because A17 reads the countdown by tapping
-        // info, the one action that armed the broken assignment. A21 now covers this path.
-        overlayManager.onEngaged = { mainHandler.post { maybeLastDayNudge() } }
-
-        // 1.6.2: arm the two free-week notices (a no-op for anyone not on the trial). When the
-        // start already falls inside the last day, the notice waits a moment so a person's own
-        // start can show the last-day sheet first; the notice then sees it and stays silent.
-        TrialNotices.arm(applicationContext)
-        if (ProAccess.isOnTrial(applicationContext)) {
-            mainHandler.postDelayed({ TrialNotices.maybePostLastDay(applicationContext) }, LAST_DAY_NOTICE_DELAY_MS)
-        }
-
-        serviceScope.launch(Dispatchers.Default) {
-            audioController.initialize()
-            // initialize() re-applies the persisted level THROUGH the gate, so a locked
-            // device with a stale deep level is now at 0 dB while the coordinator still
-            // believes it is in the quiet zone (it read the pre-clamp value when it was
-            // constructed). Without this the dial would open showing a step it is not
-            // applying, on every single start.
-            coordinator.syncZoneToAppliedGain()
-            if (!audioController.isEffectAvailable) {
-                Log.e(tag, "No audio effect available — service will run without audio attenuation")
-                // 1.7.0: say so, once. Until now this was a log line: the dial lit its quiet bars
-                // and the sound never moved, on exactly the devices where nothing can be done.
-                // "Your access" keeps saying it for as long as it stays true.
-                if (!Prefs.wasNoEffectTold(applicationContext)) {
-                    Prefs.setNoEffectTold(applicationContext)
-                    toast(getString(R.string.gv_effect_none))
-                }
-            }
-            // Read the device's volume curve AFTER the effect is up (update semantics:
-            // reads only, writes nothing until the user touches the slider).
-            coordinator.refreshCurve()
-        }
-
-        // API 34+ requires an explicit export flag on context-registered receivers.
-        // NOT_EXPORTED still receives system broadcasts (they come from the system UID).
-        androidx.core.content.ContextCompat.registerReceiver(
-            this,
-            volumeChangeReceiver,
-            IntentFilter(VOLUME_CHANGED_ACTION),
-            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
-        )
-        androidx.core.content.ContextCompat.registerReceiver(
-            this,
-            keyInstalledReceiver,
-            IntentFilter(Intent.ACTION_PACKAGE_ADDED).apply {
-                addDataScheme("package")
-                addDataSchemeSpecificPart(KEY_APP_PACKAGE, PatternMatcher.PATTERN_LITERAL)
-            },
-            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
-        )
-        val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        am.registerAudioDeviceCallback(deviceCallback, mainHandler)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && modeListener != null) {
-            am.addOnModeChangedListener({ r -> mainHandler.post(r) }, modeListener)
-        }
-
-        try {
-            overlayManager.show()
-        } catch (e: Exception) {
-            // Surface the real reason on-device instead of failing silently.
-            Log.e(tag, "Failed to show overlay: ${e.message}", e)
-            toast(getString(R.string.gv_toast_dial_failed))
-        }
-        Prefs.setServiceWasRunning(applicationContext, true)
-        // 1.7.0: the live flag every other surface reads (launcher icon, tile, notices).
+        overlay = NightOverlay(this)
+        am = getSystemService(AUDIO_SERVICE) as AudioManager
+        (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(
+            NotificationChannel("quiet_night", "Wind-down controls", NotificationManager.IMPORTANCE_LOW))
+        val n = notification()
+        if (Build.VERSION.SDK_INT >= 34) startForeground(802, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        else startForeground(802, n)
+        SleepSettings.prefs(this).registerOnSharedPreferenceChangeListener(prefsListener)
+        ContextCompat.registerReceiver(this, volumeReceiver, IntentFilter("android.media.VOLUME_CHANGED_ACTION"), ContextCompat.RECEIVER_NOT_EXPORTED)
+        am.registerAudioDeviceCallback(devices, handler)
+        if (Build.VERSION.SDK_INT >= 31 && modeListener != null) am.addOnModeChangedListener({ handler.post(it) }, modeListener)
         ControlLive.running = true
-
-        // 1.6.0: warm Google Play's billing connection, fetch the price for the sheets, and
-        // re-read this account's purchase record (a refund revokes, a restore re-opens). Off
-        // the main thread inside BillingManager, and posted after the dial is up so the first
-        // frames of the control never wait for Play. The latch decided this session already.
-        // 1.7.0: the answer comes back here. A purchase Play knows about and this session did not
-        // (bought on another device, restored account) opens the dial now instead of at the next
-        // start; anything else only repaints what the dial and the shade say.
-        mainHandler.postDelayed({
-            if (!ControlLive.running) return@postDelayed
-            BillingManager.prefetch(applicationContext) { owned ->
-                if (!ControlLive.running) return@prefetch
-                if (owned == true) onKeyArrived("play-record") else refreshAccessSurfaces()
-            }
-            askForUpdateIfDue(atStart = true)
-        }, BILLING_PREFETCH_DELAY_MS)
-        overlayManager.setUpdateDot(UpdateCheck.isKnownAvailable(applicationContext))
-
-        // Update notification when attenuation changes
-        audioController.attenuationDb
-            .onEach { dB -> updateNotification(dB) }
-            .launchIn(serviceScope)
     }
-
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (noOverlayPermission) {
-            // A person asked for the control (a plain start that is not the boot or update
-            // restore): take them to the setup screen, which says what is missing. A machine
-            // start says nothing. Either way the service ends, and it does not come back by
-            // itself: the control returns the next time it is started with the permission.
-            val byPerson = intent != null && intent.action == null &&
-                !intent.getBooleanExtra(EXTRA_FROM_BOOT, false)
-            if (byPerson) startSheet(MainActivity::class.java)
-            Prefs.setServiceWasRunning(applicationContext, false)
-            stopSelf()
-            return START_NOT_STICKY
+        if (intent?.action == ACTION_STOP) {
+            SleepSettings.update(this) { it.copy(enabled = false) }; SleepScheduler.reconcile(this)
+            stopSelf(); return START_NOT_STICKY
         }
+        if (!applyConfig()) return START_NOT_STICKY
+        val c = coordinator
         when (intent?.action) {
-            ACTION_STOP -> {
-                Log.i(tag, "Stop action received")
-                stopRequestedByUser = true
-                stopSelf()
+            ACTION_SET_GAIN -> {
+                val db = intent.getFloatExtra("db", 0f)
+                if (db < 0) c?.applyQuiet(db.coerceIn(-30f, 0f))
+                else c?.applyUpper((c.upperPositionCount() - 1).coerceAtLeast(0))
             }
-            ACTION_KEY_INSTALLED -> onKeyArrived("activity")
-            ACTION_SHOW_TOUR -> overlayManager.startTourOnRequest()
-            ACTION_CALIBRATE_BLUETOOTH_FLOOR -> {
-                val name = intent.getStringExtra(EXTRA_BLUETOOTH_NAME)
-                val floor = intent.getIntExtra(EXTRA_BLUETOOTH_FLOOR, -1)
-                if (name != null && floor >= 1) coordinator.calibrateBluetoothFloor(name, floor)
-            }
-            ACTION_TOUR_IF_DUE -> startTourIfDue()
-            ACTION_ACCESS_CHANGED -> {
-                // A sheet found the purchase before the service did: same door as the key signal.
-                if (ProAccess.hasPaidUnlock(applicationContext)) onKeyArrived("access-changed")
-                refreshAccessSurfaces()
-            }
-            // A plain start with a real Intent is a person or the boot receiver turning
-            // the control on; a null Intent is only ever the system resurrecting a
-            // killed sticky service, which no one asked for and no sheet may answer.
-            null -> if (intent != null) {
-                onOpenedByUser(
-                    fromBoot = intent.getBooleanExtra(EXTRA_FROM_BOOT, false),
-                    holdTour = intent.getBooleanExtra(EXTRA_HOLD_TOUR, false)
-                )
-            } else if (ProAccess.isTrialExpired(applicationContext)) {
-                // 1.6.2: the system brought a killed control back after the week ended. It runs
-                // locked and nobody asked for it, so no sheet; the one-time notice says why.
-                TrialNotices.maybePostEnded(applicationContext, stillRunning = false)
+            ACTION_QUIETER -> step(-1)
+            ACTION_LOUDER -> step(1)
+            ACTION_MUTE -> c?.toggleMute()
+            ACTION_CALIBRATE_BLUETOOTH_FLOOR -> intent.getStringExtra(EXTRA_BLUETOOTH_NAME)?.let {
+                c?.calibrateBluetoothFloor(it, intent.getIntExtra(EXTRA_BLUETOOTH_FLOOR, 1))
             }
         }
         return START_STICKY
     }
-
-    /**
-     * Whether the full range is open for THIS session.
-     *
-     * Latched, and it only ever opens: the snapshot is taken at service start, and after
-     * that the only thing that can change the answer is the key arriving, which must take
-     * effect at once. A trial that runs out while the control is live is deliberately
-     * ignored until the next start. Nothing may get louder on its own while someone is on a
-     * call at -30 dB, and finding the app dead the next time you start it is a far kinder
-     * failure than the phone shouting mid-sentence.
-     */
-    private fun unlockedThisSession(): Boolean {
-        if (sessionUnlocked) return true
-        if (!ProAccess.isPro(applicationContext)) return false
-        sessionUnlocked = true
-        publishSession()
-        Log.i(tag, "Full range opened mid-session (key installed)")
-        // A gesture got here before the package broadcast was handled. The gesture's own level
-        // stands; the welcome still has to happen, so schedule it (it finds the session open and
-        // skips the landing). Skipped when onKeyArrived is the caller: it is already here.
-        if (!keyWelcomed) mainHandler.post { onKeyArrived("gesture") }
-        return true
+    private fun step(direction: Int) {
+        val c = coordinator ?: return
+        val state = c.uiState()
+        if (state.zoneQuiet) {
+            val db = state.quietDb + direction * 5f
+            if (db >= 0) c.applyUpper(c.upperPositionCount() - 1) else c.applyQuiet(db.coerceAtLeast(-30f))
+        } else if (direction < 0 && state.upperPos >= state.upperCount - 1) c.applyQuiet(-5f)
+        else c.applyUpper((state.upperPos - direction).coerceIn(0, state.upperCount - 1))
     }
-
-    /**
-     * 1.7.0: whether a gesture on the dial may change the level right now. Live, not latched.
-     *
-     * While the user is entitled (free week, purchase, key, free for good) this is the latch's
-     * own answer and nothing changed. Once the free week has run out it is false even though
-     * the session is still open: the level that is applied STAYS (the audio gate above is the
-     * latch and never takes it away), and the bar, chevron or mute that would change it is
-     * refused and answered with the purchase sheet. Nothing gets louder or quieter on its own.
-     *
-     * The physical volume keys do not come through here. They are the system's own keys: above
-     * the line they move the hardware volume as always, and inside the quiet zone volume-up
-     * still climbs one step per press, so nobody is ever held at a low level.
-     */
-    private fun gesturesOpen(): Boolean {
-        if (!ProAccess.isPro(applicationContext)) return false
-        // Entitled. If the session was still locked this opens it (and schedules the welcome).
-        if (!sessionUnlocked) return unlockedThisSession()
-        // A held session whose purchase arrived, found by a gesture before any signal: welcome it.
-        if (!keyWelcomed && ProAccess.hasPaidUnlock(applicationContext)) {
-            mainHandler.post { onKeyArrived("gesture") }
-        }
-        return true
-    }
-
-    /** Read-only picture of the lock for the dial, the tab and the notification. Mutates nothing. */
-    private fun lockDisplay(): FullRangeCoordinator.LockDisplay = when {
-        ProAccess.isPro(applicationContext) -> FullRangeCoordinator.LockDisplay.OPEN
-        sessionUnlocked -> FullRangeCoordinator.LockDisplay.HELD
-        else -> FullRangeCoordinator.LockDisplay.LOCKED
-    }
-
-    /** Publishes the latch for the surfaces outside the service, and for our own update restart. */
-    private fun publishSession() {
-        ControlLive.sessionOpen = sessionUnlocked
-        Prefs.setSessionOpen(applicationContext, sessionUnlocked)
-    }
-
-    /** Repaints the dial and the notification from the current truth. Never touches the sound. */
-    private fun refreshAccessSurfaces() {
-        if (noOverlayPermission) return
-        overlayManager.refresh()
-        // The access sheet asks Play every time it opens. When its answer differs from what
-        // this dial shows, the sheet sends ACTION_ACCESS_CHANGED and the mark follows here.
-        // Found on the owner's phone (2026-10-04): the row was on screen and the dial knew nothing.
-        overlayManager.setUpdateDot(UpdateCheck.isKnownAvailable(applicationContext))
-        updateNotification(audioController.attenuationDb.value)
-    }
-
-    /**
-     * 1.7.0: ask the Play Store app on this device whether a newer version exists: at every
-     * start of the control, and at most once a day while it keeps running. The answer marks
-     * the dial's info button, nothing more.
-     *
-     * Called at start, and again whenever the volume changes: a control that is restored at
-     * every boot can run for weeks without a start, and one question at onCreate would leave
-     * exactly the longest-running users without the signal. The volume broadcast is the one
-     * event that only happens while the device is in use; it costs two preference reads, and
-     * the hour gate keeps a Store that does not answer from being asked at every key press.
-     */
-    private var updateAskedAtElapsed = 0L
-    private fun askForUpdateIfDue(atStart: Boolean = false) {
-        if (noOverlayPermission || !ControlLive.running) return
-        val now = SystemClock.elapsedRealtime()
-        if (!atStart && updateAskedAtElapsed != 0L && now - updateAskedAtElapsed < UPDATE_ASK_GAP_MS) return
-        updateAskedAtElapsed = now
-        val onAnswer: (Boolean) -> Unit = { available ->
-            if (ControlLive.running) overlayManager.setUpdateDot(available)
-        }
-        // Every start asks, whatever the day stamp says. Owner's phone, 2026-10-04: he turned
-        // the control off and on to see the mark, and it stayed dark because the access sheet
-        // had asked minutes earlier. A start is a person, a boot or an update, never a loop.
-        if (atStart) UpdateCheck.checkNow(applicationContext, onAnswer)
-        else UpdateCheck.checkDaily(applicationContext, onAnswer)
-    }
-
-    /**
-     * The commercial voice of the app, and ALL of it. Two sentences of policy:
-     *
-     *  - Expired: every user-originated start answers with the "Your access" sheet,
-     *    because starting a control that can no longer do anything deserves an
-     *    explanation and the one-tap route to fixing it, every time, uncapped.
-     *  - Final trial day: the sheet interrupts ONCE, to warn that tomorrow it locks.
-     *    Both here (covers a fresh start that day) and from onEngaged (covers a
-     *    session already running when the last day begins).
-     *
-     * Nothing here ever fires on a timer or a boot. A prompt with no user action
-     * behind it is spam, reads as adware in reviews, and risks the Play policy on
-     * interruptive monetization; the daily cadence the model needs is carried by
-     * whichever comes first that day: a start (sheet) or a locked gesture (paywall).
-     */
-    private fun onOpenedByUser(fromBoot: Boolean, holdTour: Boolean = false) {
-        if (fromBoot) return
-        if (AccessState.of(applicationContext).weekOver) { openInfoSheet(); return }
-        // 1.7.0: the setup screen is still showing its first-run dialog over the dial; it sends
-        // ACTION_TOUR_IF_DUE when that is answered.
-        if (holdTour) return
-        startTourIfDue()
-    }
-
-    /**
-     * 1.5.1: the feature tour, once per install, only on a start a person made, and never over
-     * the last-day sheet: one thing at a time on a start.
-     */
-    private fun startTourIfDue() {
-        if (AccessState.of(applicationContext).weekOver) return
-        if (!maybeLastDayNudge()) overlayManager.maybeStartTour()
-    }
-
-    /** Once, on the trial's final day: cheapest check first, so the everyday cost is one boolean read. */
-    private fun maybeLastDayNudge(): Boolean {
-        if (Prefs.wasLastDayNudgeShown(applicationContext)) return false
-        if (!ProAccess.isOnTrial(applicationContext)) return false
-        if (Entitlement.daysLeftInTrial(applicationContext) > 1) return false
-        Prefs.setLastDayNudgeShown(applicationContext)
-        openInfoSheet()
-        return true
-    }
-
-    private fun openInfoSheet() = startSheet(InfoSheetActivity::class.java)
-
-    private fun openPaywall() = startSheet(PaywallActivity::class.java)
-
-    /**
-     * 1.5.3: every screen the service opens goes through here. Android may refuse an activity
-     * start from a service (background-start limits, a start that races the boot sequence), and
-     * the refusal arrives as a RuntimeException ("Activity could not be started"). Thrown from
-     * onStartCommand, it killed the whole service: the control vanished because a sheet could
-     * not open. Found in the emulator's dropbox during the 1.5.3 lifecycle run, on the locked
-     * start path (onOpenedByUser -> openInfoSheet). A refused sheet is now logged and skipped;
-     * the dial keeps running, and the user meets the sheet on their next tap.
-     */
-    private fun startSheet(activity: Class<*>) {
-        try {
-            startActivity(
-                Intent(applicationContext, activity).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
-        } catch (e: RuntimeException) {
-            Log.w(tag, "Could not open ${activity.simpleName}: ${e.message}")
-        }
-    }
-
-    /**
-     * The key has arrived, through one of three doors: the package broadcast (the normal one,
-     * see [keyInstalledReceiver]), the paywall or info sheet resuming after the store, or a
-     * gesture that found the key already installed. Whichever comes first does the work; the
-     * others find it done.
-     *
-     *  1. LANDING, only if the session was still locked. The gate held the gain at 0 dB for the
-     *     whole locked session, so the purchase by itself changes nothing audible, and "I paid
-     *     and nothing happened" is the worst possible first second of ownership. See
-     *     [landAfterUnlock]: the refused step if there was one, otherwise the stored place, and
-     *     never louder than the locked state it replaces. Every public surface promises "every
-     *     step comes back exactly where you left it"; until 2026-09-10 that only happened at the
-     *     next service start.
-     *  2. WELCOME for a buyer: one toast and the dial lighting up. Not for a grandfathered user
-     *     buying the key as support, for whom nothing was unlocked. The live welcome also counts
-     *     as the purchase acknowledgement, so MainActivity's one-time card does not repeat it.
-     *  3. The notification is repainted: it said "Locked" a second ago.
-     */
-    private fun onKeyArrived(source: String) {
-        if (keyWelcomed) return
-        if (!ProAccess.hasPaidUnlock(applicationContext)) {
-            // A key signed by anyone else (KeyCheck has already logged the rejection), or a
-            // sheet that resumed without a purchase behind it.
-            Log.w(tag, "Key signal ($source), but no valid key installed: ignoring")
-            return
-        }
-        val wasLocked = !sessionUnlocked
-        keyWelcomed = true
-        unlockedThisSession()
-        Log.i(tag, "Key arrived ($source), session was ${if (wasLocked) "locked" else "open"}")
-        TrialNotices.cancel(applicationContext)   // 1.6.2
-        if (wasLocked) landAfterUnlock() else landRefusedStep()
-        if (!Entitlement.isGrandfathered(applicationContext)) {
-            Prefs.setUnlockAcknowledged(applicationContext)
-            Toast.makeText(applicationContext, R.string.gv_paywall_unlocked, Toast.LENGTH_LONG).show()
-            overlayManager.celebrateUnlock()
-        }
-        updateNotification(audioController.attenuationDb.value)
-    }
-
-    /**
-     * Puts the audio where the buyer asked, or where they left it. Never louder.
-     *
-     * Never louder, because: while locked the gain sat at 0 dB and the hardware wherever the
-     * buyer's own keys had left it. The landing goes through [FullRangeCoordinator.applyQuiet],
-     * which only ever LOWERS the hardware (lowerTo) and applies a gain at or below 0 dB. The two
-     * exits below are the only ways that could break: a muted stream (applyQuiet cancels mute
-     * first, restoring the pre-mute level, so a landing would UNMUTE the buyer) and a cellular
-     * call (applyQuiet refuses there and says so; the place comes back after the call). A locked
-     * session cannot be muted today, since a locked mute is refused and mute is not persisted, so
-     * that exit guards a future path rather than a tested one.
-     *
-     * Only a real quiet step counts as a place. The stored level also holds upper-zone curve
-     * remainders, a few dB of fine-tuning between hardware rungs, and applying one as a quiet
-     * step would drop the buyer to the floor for a fraction of a step, which is not where they
-     * were. Those buyers, and anyone who never used the quiet zone, stay exactly where they are.
-     */
-    private fun landAfterUnlock() {
-        val pending = takeFreshPendingStep()
-        if (coordinator.isMuted) { Log.i(tag, "Key landing skipped: muted"); return }
-        if (coordinator.uiState().quietUnavailable) { Log.i(tag, "Key landing skipped: cellular call"); return }
-        val stored = Prefs.getAttenuation(applicationContext)
-        val place = stored.takeIf { s -> OverlayManager.STEP_DB.any { it < 0f && abs(it - s) < 0.01f } }
-        val target = pending ?: place
-        if (target == null) {
-            Log.i(tag, "Key landing: no quiet place to return to (stored ${stored}dB), staying put")
-            coordinator.syncZoneToAppliedGain()
-            return
-        }
-        Log.i(tag, "Key landing on ${if (pending != null) "the refused step" else "the stored place"} (${target}dB)")
-        coordinator.applyQuiet(target)
-    }
-
-    /**
-     * The refused quiet step, if it was refused recently enough to still be a request.
-     * Always clears it: a step refused an hour ago must not move the sound when a purchase
-     * made from another screen arrives.
-     */
-    private fun takeFreshPendingStep(): Float? {
-        val pending = pendingQuietStepDb
-        pendingQuietStepDb = null
-        val fresh = SystemClock.elapsedRealtime() - pendingQuietStepAtMs <= PENDING_STEP_TTL_MS
-        return if (fresh) pending else null
-    }
-
-    /**
-     * 1.7.0, the purchase from a HELD session (the free week ended while the control was on).
-     * The level never moved, so there is nothing to restore. The only thing owed is the step
-     * the buyer reached for when the dial refused them: it lands now, exactly as asked, in
-     * either direction, because it is their own explicit choice from moments ago. With no
-     * refused step (a purchase from "Your access"), the sound stays exactly where it is.
-     */
-    private fun landRefusedStep() {
-        val pending = takeFreshPendingStep() ?: return
-        if (coordinator.isMuted) { Log.i(tag, "Refused step not landed: muted"); return }
-        if (coordinator.uiState().quietUnavailable) { Log.i(tag, "Refused step not landed: cellular call"); return }
-        Log.i(tag, "Key landing on the refused step (${pending}dB), session was holding its level")
-        coordinator.applyQuiet(pending)
-    }
-
-    /** 1.7.0: the dial and the tab keep their place on the new screen shape after a rotation. */
-    override fun onConfigurationChanged(newConfig: Configuration) {
-        super.onConfigurationChanged(newConfig)
-        if (!noOverlayPermission) overlayManager.onConfigurationChanged()
-    }
-
-    override fun onDestroy() {
-        Log.i(tag, "Service stopping (userRequested=$stopRequestedByUser)")
-        ControlLive.reset()
-        if (noOverlayPermission) { super.onDestroy(); return }
-        runCatching { unregisterReceiver(volumeChangeReceiver) }
-        runCatching { unregisterReceiver(keyInstalledReceiver) }
-        runCatching {
-            val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            am.unregisterAudioDeviceCallback(deviceCallback)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && modeListener != null) {
-                am.removeOnModeChangedListener(modeListener)
+    private fun applyConfig(): Boolean {
+        val config = SleepSettings.read(this)
+        if (!SleepScheduler.ready(this, config) || !SleepSchedule.plan(config).active) { stopSelf(); return false }
+        if (config.quiet && audio == null) {
+            val a = AudioController(applicationContext)
+            val v = StreamVolumeController(applicationContext)
+            val c = FullRangeCoordinator(applicationContext, a, v)
+            c.volumeDownProvider = { SleepSettings.read(this).volumeDown }
+            c.onQuietUnavailable = { android.widget.Toast.makeText(this, "Quiet steps cannot change cellular call audio", android.widget.Toast.LENGTH_SHORT).show() }
+            audio = a; volume = v; coordinator = c
+            a.onEffectState = { available, preferred ->
+                ControlLive.effect = if (!available) ControlLive.Effect.NONE else if (preferred)
+                    ControlLive.Effect.PREFERRED else ControlLive.Effect.FALLBACK
             }
-        }
-        overlayManager.hide()
-        coordinator.release()
-        audioController.release()
-        serviceScope.cancel()
-        // Only a user-intended stop clears the boot-restore flag. A system-initiated
-        // destroy (device shutdown, OS kill) leaves it set, so BootReceiver restores
-        // the control after the next boot.
-        if (stopRequestedByUser) {
-            Prefs.setServiceWasRunning(applicationContext, false)
-        }
+            a.initialize(); c.syncZoneToAppliedGain(); c.refreshCurve()
+            if (c.zoneQuiet && a.attenuationDb.value < 0f) c.applyQuiet(a.attenuationDb.value)
+            ControlLive.effect = if (!a.isEffectAvailable) ControlLive.Effect.NONE else if (a.usingPreferredStrategy) ControlLive.Effect.PREFERRED else ControlLive.Effect.FALLBACK
+        } else if (!config.quiet && audio != null) releaseAudio()
+        overlay.update(config, "${audio?.attenuationDb?.value?.toInt() ?: 0} dB", { step(-1) }, { step(1) })
+        (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(802, notification())
+        return true
+    }
+    private fun releaseAudio() { coordinator?.dispose(); coordinator = null; audio?.release(); audio = null; volume = null; ControlLive.effect = ControlLive.Effect.UNKNOWN }
+    private fun notification(): Notification {
+        val open = PendingIntent.getActivity(this, 1, Intent(this, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val stop = PendingIntent.getService(this, 2, Intent(this, VolumeControlService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        return NotificationCompat.Builder(this, "quiet_night").setSmallIcon(R.drawable.ic_qs_tile)
+            .setContentTitle("Quiet Night is on").setContentText("Your screen and sound, softened for the evening")
+            .setContentIntent(open).addAction(0, "Pause", stop).setOngoing(true).setSilent(true).build()
+    }
+    override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
+        SleepSettings.prefs(this).unregisterOnSharedPreferenceChangeListener(prefsListener)
+        runCatching { unregisterReceiver(volumeReceiver) }; am.unregisterAudioDeviceCallback(devices)
+        if (Build.VERSION.SDK_INT >= 31 && modeListener != null) am.removeOnModeChangedListener(modeListener)
+        overlay.close(); releaseAudio(); ControlLive.reset()
         super.onDestroy()
     }
-
     override fun onBind(intent: Intent?): IBinder? = null
-
-    /** Show a toast from any thread (service callbacks may run off the main thread). */
-    private fun toast(msg: String) {
-        Handler(Looper.getMainLooper()).post {
-            Toast.makeText(applicationContext, msg, Toast.LENGTH_LONG).show()
-        }
-    }
-
-    private fun createNotificationChannel() {
-        // Same channel id as every earlier version: creating it again only refreshes the
-        // name and the description, and keeps whatever the user set for it.
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            getString(R.string.gv_channel_name),
-            NotificationManager.IMPORTANCE_LOW   // No sound, no popup
-        ).apply {
-            description = getString(R.string.gv_channel_desc)
-            setShowBadge(false)
-        }
-        getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
-    }
-
-    private fun buildNotification(dB: Float): Notification {
-        val stopIntent = PendingIntent.getService(
-            this, 0,
-            Intent(this, VolumeControlService::class.java).apply { action = ACTION_STOP },
-            PendingIntent.FLAG_IMMUTABLE
-        )
-        // A locked control saying "Pass-through" would be the shade lying about why
-        // nothing works. Locked gets the honest line and a tap that opens the sheet:
-        // the notification is the one surface the user sees every single day, so it
-        // carries the standing, silent version of the daily reminder.
-        // Same truth the audio gate uses: once this session is open it stays open until the
-        // next start, so a trial that runs out mid-session must not have the shade calling
-        // the control "Locked" while the dial still works. Read-only on purpose (no latch
-        // mutation, no "opened mid-session" log from a notification repaint).
-        //
-        // 1.7.0: three pictures, not two. A session that is holding its level after the free
-        // week says the level AND that the week has ended, and is never called locked. The tap
-        // always opens "Your access": status, price and purchase live there, and the setup
-        // screen it used to open only started a control that was already running.
-        val display = lockDisplay()
-        val tapIntent = PendingIntent.getActivity(
-            this, 1, Intent(this, InfoSheetActivity::class.java), PendingIntent.FLAG_IMMUTABLE
-        )
-        val level = if (dB == 0f) getString(R.string.gv_notif_on) else "%.0f dB".format(dB)
-        val dbText = when (display) {
-            FullRangeCoordinator.LockDisplay.LOCKED -> getString(R.string.gv_notif_locked)
-            FullRangeCoordinator.LockDisplay.HELD -> getString(R.string.gv_notif_held, level)
-            FullRangeCoordinator.LockDisplay.OPEN -> level
-        }
-
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_volume_slider)
-            .setContentTitle(getString(R.string.app_name))
-            .setContentText(dbText)
-            .setContentIntent(tapIntent)
-            .addAction(R.drawable.ic_close, getString(R.string.gv_notif_stop), stopIntent)
-            .setOngoing(true)
-            .setSilent(true)
-            .build()
-    }
-
-    private fun updateNotification(dB: Float) {
-        getSystemService(NotificationManager::class.java)
-            .notify(NOTIFICATION_ID, buildNotification(dB))
-    }
 }

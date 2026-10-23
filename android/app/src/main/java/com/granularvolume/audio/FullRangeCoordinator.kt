@@ -68,6 +68,8 @@ class FullRangeCoordinator(
      * would render a step the device is not applying.
      */
     var lockedProvider: () -> Boolean = { false }
+    /** Optional sleep-mode behavior: continue below the floor with media volume-down. */
+    var volumeDownProvider: () -> Boolean = { false }
 
     /**
      * Read-only twin of [lockedProvider], for RENDERING only.
@@ -411,7 +413,7 @@ class FullRangeCoordinator(
     }
 
     /**
-     * User selected quiet-zone step [stepDb] (one of OverlayManager.STEP_DB). Pins the media
+     * User selected quiet-zone step [stepDb] (a quiet step from −30 to 0 dB). Pins the media
      * stream at its floor and hands the rest to the gain — exactly today's behaviour.
      */
     fun applyQuiet(stepDb: Float) {
@@ -535,6 +537,20 @@ class FullRangeCoordinator(
      */
     fun onExternalVolumeChange(stream: Int, from: Int, to: Int) {
         if (streamVol.wasSelfChange(stream, to)) return
+        if (volumeDownProvider() && stream == AudioManager.STREAM_MUSIC &&
+            !streamVol.inCall() && !isMuted && to < from && !lockedProvider()) {
+            val floor = streamVol.minAudibleIndex(stream)
+            if (from <= floor && to < floor) {
+                val next = if (zoneQuiet) (audioController.attenuationDb.value - VolumeCurve.RUNG_DB)
+                    .coerceAtLeast(Prefs.ATTENUATION_MIN) else -VolumeCurve.RUNG_DB
+                // Apply the quieter gain before restoring a non-muted hardware index.
+                audioController.setAttenuation(next, AudioController.GainSource.SYSTEM)
+                streamVol.setIndex(stream, floor)
+                zoneQuiet = true
+                notifyUi()
+                return
+            }
+        }
         // 1.7.1: a rise on the media stream that we did not write ends our mute. The dial
         // kept reading MUTE over audible sound, and the next tap on a chevron "unmuted" by
         // restoring the level from before the mute, a jump louder from a control labelled
@@ -655,6 +671,10 @@ class FullRangeCoordinator(
 
     private fun notifyUi() {
         _uiRevision.value = _uiRevision.value + 1
+    }
+
+    fun dispose() {
+        handler.removeCallbacksAndMessages(null)
     }
 
     companion object {
