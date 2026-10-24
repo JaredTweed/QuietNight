@@ -6,13 +6,25 @@ import android.view.*
 import kotlin.math.*
 
 object NightColors {
-    val background = Color.rgb(16, 14, 22)
-    val surface = Color.rgb(29, 25, 36)
-    val stroke = Color.rgb(54, 45, 62)
-    val text = Color.rgb(246, 235, 226)
-    val secondary = Color.rgb(183, 170, 189)
-    val amber = Color.rgb(246, 189, 136)
-    val lavender = Color.rgb(205, 181, 237)
+    var background = Color.rgb(16, 14, 22)
+    var surface = Color.rgb(29, 25, 36)
+    var stroke = Color.rgb(54, 45, 62)
+    var text = Color.rgb(246, 235, 226)
+    var secondary = Color.rgb(183, 170, 189)
+    var amber = Color.rgb(246, 189, 136)
+    var lavender = Color.rgb(205, 181, 237)
+    fun applyTheme(context: Context) {
+        fun color(attribute: Int, fallback: Int) =
+            com.google.android.material.color.MaterialColors.getColor(context, attribute, fallback)
+        background = color(android.R.attr.colorBackground, Color.rgb(16, 14, 22))
+        surface = color(com.google.android.material.R.attr.colorSurface, Color.rgb(29, 25, 36))
+        stroke = color(com.google.android.material.R.attr.colorOutlineVariant, Color.rgb(54, 45, 62))
+        text = color(com.google.android.material.R.attr.colorOnSurface, Color.rgb(246, 235, 226))
+        secondary = color(com.google.android.material.R.attr.colorOnSurfaceVariant, Color.rgb(183, 170, 189))
+        amber = color(com.google.android.material.R.attr.colorPrimary, Color.rgb(246, 189, 136))
+        lavender = color(com.google.android.material.R.attr.colorSecondary, Color.rgb(205, 181, 237))
+    }
+
 }
 
 /** A quiet illustration drawn locally: no image downloads or animation running overnight. */
@@ -60,12 +72,9 @@ class SleepWindowDial(context: Context) : View(context) {
         c.drawText("18", x-r-21*d, y+4*d, p); c.drawText("06", x+r+21*d, y+4*d, p)
         val duration = (end - start + 1440) % 1440
         p.color = NightColors.text; p.textSize = 30 * resources.displayMetrics.scaledDensity
-        p.typeface = Typeface.create("serif", Typeface.NORMAL)
-        val hours = duration / 60; val mins = duration % 60
-        c.drawText(if (mins == 0) "${hours}h" else "${hours}h ${mins}m", x, y, p)
         p.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
-        p.textSize = 12 * resources.displayMetrics.scaledDensity; p.color = NightColors.secondary
-        c.drawText("wind-down window", x, y + 24 * d, p)
+        val hours = duration / 60; val mins = duration % 60
+        c.drawText(if (mins == 0) "${hours}h" else "${hours}h ${mins}m", x, y + 10 * d, p)
         for ((minute, color) in listOf(start to NightColors.amber, end to NightColors.lavender)) {
             val at = point(minute)
             p.color = NightColors.background; c.drawCircle(at.x, at.y, 15*d, p)
@@ -138,7 +147,7 @@ class QuietLevelIndicator(context: Context) : View(context) {
         p.textSize = 10 * resources.displayMetrics.scaledDensity
         p.textAlign = Paint.Align.LEFT
         p.color = NightColors.secondary
-        c.drawText("QUIET DIAL", left, top + 8 * d, p)
+        c.drawText("MEDIA", left, top + 8 * d, p)
         p.textAlign = Paint.Align.RIGHT
         p.textSize = 17 * resources.displayMetrics.scaledDensity
         p.color = if (running) NightColors.lavender else NightColors.secondary

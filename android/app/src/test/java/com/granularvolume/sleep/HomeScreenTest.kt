@@ -39,8 +39,15 @@ class HomeScreenTest {
     private fun views(view: View): List<View> = listOf(view) +
         if (view is ViewGroup) (0 until view.childCount).flatMap { views(view.getChildAt(it)) } else emptyList()
     private fun screenshots(activity: MainActivity, name: String, schedule: Boolean = false, audio: Boolean = false) {
+        // Let Material's attach/state animations settle before capturing the controls.
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(400))
         val decor = activity.window.decorView
         val metrics = activity.resources.displayMetrics
+        views(decor).forEach {
+            // Bitmap screenshots cannot composite hardware-only animation layers reliably.
+            it.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
+            it.forceLayout()
+        }
         decor.measure(View.MeasureSpec.makeMeasureSpec(metrics.widthPixels, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(metrics.heightPixels, View.MeasureSpec.EXACTLY))
         decor.layout(0, 0, metrics.widthPixels, metrics.heightPixels)
@@ -59,6 +66,13 @@ class HomeScreenTest {
             scroll.scrollTo(0, rect.top - 130)
         }
         val bitmap = Bitmap.createBitmap(metrics.widthPixels, metrics.heightPixels, Bitmap.Config.ARGB_8888)
+        views(decor).filterIsInstance<ExtendedFloatingActionButton>().forEach { action ->
+            val bounds = android.graphics.Rect()
+            assertEquals(View.VISIBLE, action.visibility)
+            assertEquals(1f, action.alpha, .01f)
+            assertTrue("$name: ${action.text} not visible (${action.width} x ${action.height})",
+                action.getGlobalVisibleRect(bounds))
+        }
         decor.draw(Canvas(bitmap))
         val file = File("build/reports/screenshots/$name.png"); file.parentFile?.mkdirs()
         file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
@@ -74,11 +88,12 @@ class HomeScreenTest {
         try {
             val activity = controller.get()
             val initial = views(activity.window.decorView)
-            assertTrue(initial.filterIsInstance<TextView>().any { it.text.toString() == "Make room\nfor rest." })
+            assertTrue(initial.filterIsInstance<TextView>().any { it.text.toString() == "Quiet Night" })
             assertTrue(initial.filterIsInstance<Slider>().any { it.valueTo == 85f })
             assertTrue(initial.filterIsInstance<Slider>().any { it.valueTo == 100f })
             assertTrue(initial.filterIsInstance<Slider>().none { it.contentDescription == "Extra attenuation" })
             assertEquals(2, initial.filterIsInstance<ExtendedFloatingActionButton>().size)
+            assertTrue(initial.filterIsInstance<QuietLevelIndicator>().isEmpty())
             assertTrue(initial.filterIsInstance<Button>().none { it.text.toString() == "Begin wind-down" })
             screenshots(activity, "quiet-night-home")
             initial.filterIsInstance<Button>().single { it.text.toString() == "Custom" }.performClick()
@@ -131,6 +146,49 @@ class HomeScreenTest {
             screenshots(activity, "quiet-night-audio", audio = true)
         } finally { controller.pause().stop().destroy() }
     }
+    @Test @Config(qualifiers = "w360dp-h800dp-xhdpi")
+    fun compactHomeKeepsControlsVisibleAboveTheBottomBar() {
+        val app = RuntimeEnvironment.getApplication()
+        SleepSettings.write(app, SleepConfig(audio = true))
+        ShadowSettings.setCanDrawOverlays(true)
+        val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
+        try {
+            val activity = controller.get()
+            screenshots(activity, "quiet-night-compact")
+            val all = views(activity.window.decorView)
+            val indicator = all.filterIsInstance<QuietLevelIndicator>().single()
+            val buttons = all.filterIsInstance<ExtendedFloatingActionButton>()
+            val indicatorBounds = android.graphics.Rect()
+            val dockBounds = android.graphics.Rect()
+            assertTrue(indicator.getGlobalVisibleRect(indicatorBounds))
+            assertEquals(indicator.height, indicatorBounds.height())
+            assertTrue((buttons.first().parent as View).getGlobalVisibleRect(dockBounds))
+            assertTrue(indicatorBounds.bottom <= dockBounds.top)
+            assertTrue(buttons.all { it.width >= 120 * activity.resources.displayMetrics.density })
+        } finally { controller.pause().stop().destroy() }
+    }
+
+    @Test fun helpAndPrivacyRemainAccessibleFromTheMenu() {
+        val app = RuntimeEnvironment.getApplication()
+        SleepSettings.write(app, SleepConfig())
+        ShadowSettings.setCanDrawOverlays(true)
+        val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
+        try {
+            val activity = controller.get()
+            views(activity.window.decorView).single { it.contentDescription == "More options" }.performClick()
+            val popup = org.robolectric.shadows.ShadowPopupMenu.getLatestPopupMenu()
+            assertEquals(listOf("How to use", "About & privacy", "Licenses"),
+                (0 until popup.menu.size()).map { popup.menu.getItem(it).title.toString() })
+            popup.menu.performIdentifierAction(popup.menu.getItem(0).itemId, 0)
+            val dialog = org.robolectric.shadows.ShadowDialog.getLatestDialog()
+            assertTrue(dialog.isShowing)
+            assertTrue(views(dialog.window!!.decorView).filterIsInstance<TextView>().any {
+                it.text.contains("Screen and Audio work independently")
+            })
+            dialog.dismiss()
+        } finally { controller.pause().stop().destroy() }
+    }
+
     @Test fun removedAudioTogglesAreGoneFromSettings() {
         val app = RuntimeEnvironment.getApplication()
         SleepSettings.prefs(app).edit().clear().commit()

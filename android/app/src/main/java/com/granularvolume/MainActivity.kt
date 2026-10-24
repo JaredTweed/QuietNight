@@ -24,6 +24,8 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import com.google.android.material.slider.Slider
+import com.google.android.material.color.DynamicColors
+import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -66,25 +68,33 @@ class MainActivity : AppCompatActivity() {
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
+        DynamicColors.applyToActivityIfAvailable(this)
         super.onCreate(savedInstanceState)
+        NightColors.applyTheme(this)
         window.statusBarColor = NightColors.background; window.navigationBarColor = NightColors.background
         window.decorView.systemUiVisibility = 0
         WindowCompat.setDecorFitsSystemWindows(window, false)
         scroll = ScrollView(this).apply { setBackgroundColor(NightColors.background); isFillViewport = true; clipToPadding = false }
-        root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(20), dp(24), dp(170)) }
+        root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(16), dp(20), dp(112)) }
         if (resources.configuration.smallestScreenWidthDp >= 600) {
             scroll.addView(root, FrameLayout.LayoutParams(dp(560), -2, Gravity.CENTER_HORIZONTAL))
         } else scroll.addView(root)
-        actions = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.END }
+        actions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(NightColors.surface); cornerRadius = dp(32).toFloat()
+            }
+        }
         val frame = FrameLayout(this).apply { setBackgroundColor(NightColors.background) }
         frame.addView(scroll, FrameLayout.LayoutParams(-1, -1))
-        frame.addView(actions, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.END))
+        frame.addView(actions, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
         setContentView(frame)
         ViewCompat.setOnApplyWindowInsetsListener(frame) { _, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             scroll.setPadding(bars.left, bars.top, bars.right, bars.bottom)
             (actions.layoutParams as FrameLayout.LayoutParams).apply {
-                rightMargin = bars.right + dp(18); bottomMargin = bars.bottom + dp(18)
+                leftMargin = bars.left + dp(20); rightMargin = bars.right + dp(20); bottomMargin = bars.bottom + dp(16)
             }
             insets
         }
@@ -111,17 +121,17 @@ class MainActivity : AppCompatActivity() {
     private fun LinearLayout.add(view: View, top: Int = 0) {
         addView(view, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(top) })
     }
-    private fun card(title: String, subtitle: String): LinearLayout {
+    private fun card(title: String): LinearLayout {
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(16))
-            add(text(title, 20f, bold = true)); add(text(subtitle, 13f, NightColors.secondary), 5)
+            add(text(title, 18f).apply { typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL) })
         }
         val card = MaterialCardView(this).apply {
             radius = dp(24).toFloat(); cardElevation = 0f
-            setCardBackgroundColor(NightColors.surface); strokeColor = NightColors.stroke; strokeWidth = dp(1)
+            setCardBackgroundColor(NightColors.surface); strokeColor = NightColors.stroke; strokeWidth = 0
             addView(content)
         }
-        root.add(card, 16)
+        root.add(card, 12)
         return content
     }
     private fun button(label: String, primary: Boolean = false, action: () -> Unit): Button = MaterialButton(this).apply {
@@ -129,7 +139,7 @@ class MainActivity : AppCompatActivity() {
         setPadding(dp(14), dp(10), dp(14), dp(10))
         setTextColor(if (primary) NightColors.background else NightColors.lavender)
         backgroundTintList = ColorStateList.valueOf(if (primary) NightColors.amber else NightColors.surface)
-        cornerRadius = dp(16); strokeWidth = if (primary) 0 else dp(1)
+        cornerRadius = dp(24); strokeWidth = if (primary) 0 else dp(1)
         strokeColor = ColorStateList.valueOf(NightColors.stroke)
         setOnClickListener { action() }
     }
@@ -141,7 +151,7 @@ class MainActivity : AppCompatActivity() {
             setTextColor(if (active) NightColors.background else NightColors.text)
             iconTint = ColorStateList.valueOf(if (active) NightColors.background else NightColors.lavender)
             backgroundTintList = ColorStateList.valueOf(if (active) NightColors.amber else NightColors.surface)
-            elevation = dp(8).toFloat()
+            elevation = 0f; cornerRadius = dp(24)
             setOnClickListener { action() }
         }
     private fun persist(redraw: Boolean = false, change: (SleepConfig) -> SleepConfig) {
@@ -172,105 +182,147 @@ class MainActivity : AppCompatActivity() {
         root.removeAllViews(); actions.removeAllViews()
         quietIndicator = null; quietHint = null
         screenAction = null; audioAction = null
-        val config = SleepSettings.read(this); val plan = SleepSchedule.plan(config)
+        val config = SleepSettings.read(this)
+        val plan = SleepSchedule.plan(config)
         renderedAudioReady = ControlLive.audioState != null
         renderedSystemOverlay = ScreenOverlayService.isConnected()
-        root.add(text("QUIET NIGHT", 12f, NightColors.lavender, true).apply { letterSpacing = .22f })
-        val hero = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        hero.addView(text("Make room\nfor rest.", 36f).apply { typeface = Typeface.create("sans-serif", Typeface.NORMAL) }, LinearLayout.LayoutParams(0, -2, 1f))
-        hero.addView(MoonView(this).apply { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }, LinearLayout.LayoutParams(dp(108), dp(134)))
-        root.add(hero, 6)
-        root.add(text(summary(config, plan), 13f, NightColors.secondary), 2)
-        if (!ScreenOverlayService.isConnected() && !PermissionHelper.canDrawOverlays(this)) {
-            val setup = card("Let the evening follow you", "Allow Quiet Night to draw its tint and dimming layer over other apps.")
-            setup.add(button("Allow screen overlay") { overlayPermission.launch(PermissionHelper.overlayPermissionIntent(this)) }, 12)
-        }
-        val light = card("Evening light", "A red-orange tint with less blue, paired with gentle dimming.")
-        slider(light, "Color intensity", config.warmth, 100) { n -> persist { it.copy(warmth = n) } }
-        slider(light, "Screen dim", config.dim, 85, color = NightColors.lavender) { n -> persist { it.copy(dim = n) } }
-        light.add(text("Set either slider to 0% to turn that adjustment off. Dimming is capped at 85% and never changes your saved brightness.", 12f, NightColors.secondary), 2)
+
+        val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        header.addView(text("Quiet Night", 30f).apply {
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        header.addView(button("") {}.apply {
+            contentDescription = "More options"
+            (this as MaterialButton).setIconResource(R.drawable.ic_more)
+            iconPadding = 0; iconTint = ColorStateList.valueOf(NightColors.secondary)
+            setPadding(dp(12), 0, dp(12), 0)
+            strokeWidth = 0; backgroundTintList = ColorStateList.valueOf(NightColors.background)
+            setOnClickListener { moreOptions(this) }
+        }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        root.add(header, 4)
+
+        val light = card("Screen")
+        slider(light, "Warmth", config.warmth, 100) { n -> persist { it.copy(warmth = n) } }
+        slider(light, "Dim", config.dim, 85, color = NightColors.lavender) { n -> persist { it.copy(dim = n) } }
         if (!ScreenOverlayService.isConnected()) {
-            light.add(button("Dim notifications & Quick Settings") {
-                MaterialAlertDialogBuilder(this).setTitle("Dim the whole screen")
-                    .setMessage("Enable Quiet Night screen dimming in Accessibility settings to place the filter above notifications and Quick Settings. It draws a touch-through filter only: it does not read screen content, observe your actions, or control gestures. System brightness stays unchanged.")
-                    .setNegativeButton("Cancel", null)
-                    .setPositiveButton("Open settings") { _, _ ->
-                        timingPermission.launch(ScreenOverlayService.settingsIntent())
-                    }.show()
-            }, 12)
-            light.add(text("Without this access, the filter covers app screens only.", 12f, NightColors.secondary), 6)
-        } else light.add(text("Full-screen overlay includes notifications and Quick Settings. System brightness stays unchanged.", 12f, NightColors.secondary), 9)
+            light.add(button("Include Quick Settings") { screenOverlayHelp() }, 6)
+        }
+        if (!ScreenOverlayService.isConnected() && !PermissionHelper.canDrawOverlays(this)) {
+            light.add(button("Allow screen overlay") {
+                overlayPermission.launch(PermissionHelper.overlayPermissionIntent(this))
+            }, 4)
+        }
         if (LegacyBrightnessRecovery.pending(this)) {
-            light.add(text("An earlier version saved a brightness setting that still needs restoring. This is separate from overlay dimming.", 12f, NightColors.secondary), 9)
             light.add(button("Restore previous brightness") {
                 timingPermission.launch(LegacyBrightnessRecovery.permissionIntent(this))
             }, 6)
         }
-        val schedule = card("Your evening rhythm", "Schedule screen controls. Audio stays independent.")
-        val modes = LinearLayout(this)
-        for ((mode, name) in listOf(ScheduleMode.ALWAYS to "Always", ScheduleMode.SUN to "Sunset", ScheduleMode.CUSTOM to "Custom")) {
-            modes.addView(button(name, config.mode == mode) { persist(true) { it.copy(mode = mode) } },
-                LinearLayout.LayoutParams(0, dp(48), 1f).apply { if (mode != ScheduleMode.ALWAYS) marginStart = dp(6) })
+
+        val schedule = card("Screen schedule")
+        val modes = MaterialButtonToggleGroup(this).apply {
+            isSingleSelection = true; isSelectionRequired = true
         }
-        schedule.add(modes, 16)
+        val modeIds = mutableMapOf<Int, ScheduleMode>()
+        for ((mode, name) in listOf(ScheduleMode.ALWAYS to "Always", ScheduleMode.SUN to "Sunset", ScheduleMode.CUSTOM to "Custom")) {
+            val choice = (button(name, config.mode == mode) {} as MaterialButton).apply {
+                id = View.generateViewId(); isCheckable = true
+                setPadding(dp(8), dp(8), dp(8), dp(8))
+                insetTop = 0; insetBottom = 0
+                strokeWidth = dp(1)
+                strokeColor = ColorStateList.valueOf(if (config.mode == mode) NightColors.amber else NightColors.stroke)
+            }
+            modeIds[choice.id] = mode
+            modes.addView(choice, LinearLayout.LayoutParams(0, dp(48), 1f))
+            if (config.mode == mode) modes.check(choice.id)
+        }
+        modes.addOnButtonCheckedListener { _, id, checked ->
+            if (checked) modeIds[id]?.takeIf { it != config.mode }?.let { selected ->
+                persist(true) { it.copy(mode = selected) }
+            }
+        }
+        schedule.add(modes, 12)
         when (config.mode) {
-            ScheduleMode.ALWAYS -> schedule.add(text("Screen controls stay on until you switch them off. Audio has its own button.", 13f, NightColors.secondary), 14)
+            ScheduleMode.ALWAYS -> Unit
             ScheduleMode.SUN -> {
-                schedule.add(text("Sunset → sunrise", 18f, NightColors.amber, true), 18)
-                schedule.add(text(if (config.latitude == null) "Choose a location once. Sun times update locally each day." else
-                    "Using ${"%.2f".format(config.latitude)}°, ${"%.2f".format(config.longitude)}°. No background location tracking.", 12f, NightColors.secondary), 5)
-                schedule.add(button("Use current location") { requestLocation() }, 12)
-                schedule.add(button("Enter location manually") { locationDialog() }, 6)
+                schedule.add(text("Sunset → sunrise", 14f, NightColors.secondary), 14)
+                if (config.latitude != null) {
+                    schedule.add(button("Change location") {
+                        MaterialAlertDialogBuilder(this).setTitle("Location")
+                            .setItems(arrayOf("Use current location", "Enter coordinates")) { _, which ->
+                                if (which == 0) requestLocation() else locationDialog()
+                            }.show()
+                    }, 6)
+                } else {
+                    val locations = LinearLayout(this)
+                    locations.addView(button("Use location") { requestLocation() }, LinearLayout.LayoutParams(0, -2, 1f))
+                    locations.addView(button("Enter manually") { locationDialog() }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(8) })
+                    schedule.add(locations, 6)
+                }
+                plan.message?.let { schedule.add(text(it, 12f, NightColors.secondary), 8) }
             }
             ScheduleMode.CUSTOM -> {
                 val dial = SleepWindowDial(this).apply { start = config.start; end = config.end }
-                schedule.addView(dial, LinearLayout.LayoutParams(-1, dp(265)).apply { topMargin = dp(10) })
+                schedule.addView(dial, LinearLayout.LayoutParams(-1, dp(232)).apply { topMargin = dp(8) })
                 val times = LinearLayout(this)
                 val startButton = button("START\n${formatTime(config.start)}") { pickTime(true) }
                 val endButton = button("END\n${formatTime(config.end)}") { pickTime(false) }
-                times.addView(startButton, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6) })
-                times.addView(endButton, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(6) })
-                schedule.add(times, 4)
+                times.addView(startButton, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(4) })
+                times.addView(endButton, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(4) })
+                schedule.add(times, 2)
                 dial.onChange = { start, end ->
                     startButton.text = "START\n${formatTime(start)}"
                     endButton.text = "END\n${formatTime(end)}"
                     persist { it.copy(start = start, end = end) }
                 }
-                schedule.add(text("Drag either handle, or tap a time for precise control. Overnight schedules are supported.", 12f, NightColors.secondary), 12)
             }
         }
         if (config.mode != ScheduleMode.ALWAYS && !SleepScheduler.hasTimingPermission(this)) {
-            schedule.add(button("Allow scheduled changes") { openTimingPermission() }, 14)
-            schedule.add(text("Let Android start and stop screen controls at your chosen times. Audio keeps its own on/off state.", 12f, NightColors.secondary), 6)
+            schedule.add(button("Allow schedule access") { openTimingPermission() }, 8)
         }
-        val sound = card("Quiet sound", "Finer media steps from the Audio button, below Android’s usual minimum.")
+
         if (config.audio) {
+            val sound = card("Sound")
             val active = ControlLive.audioState != null
             val gain = if (Prefs.isLevelInQuietZone(this)) (-Prefs.getAttenuation(this)).coerceIn(0f, 30f) else 0f
             quietIndicator = QuietLevelIndicator(this).apply { setLevel(gain, active) }
-            sound.add(quietIndicator!!, 14)
+            sound.add(quietIndicator!!, 10)
             quietHint = text("", 12f, NightColors.secondary)
-            sound.add(quietHint!!, 4)
+            sound.add(quietHint!!, 2)
             bluetoothCalibration(sound, active)
-        } else {
-            sound.add(text("Audio controls are off. Use the Audio button in the bottom-right corner to enable Quiet Dial.", 13f, NightColors.secondary), 12)
         }
-        val footer = LinearLayout(this).apply { gravity = Gravity.CENTER }
-        footer.addView(button("About & privacy") { about() }, LinearLayout.LayoutParams(0, -2, 1f))
-        footer.addView(button("Licenses") { startActivity(Intent(this, LicensesActivity::class.java)) }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(8) })
-        root.add(footer, 22)
-        root.add(text("Less light is the goal. Put your phone away when you’re ready to sleep.", 12f, NightColors.secondary).apply { gravity = Gravity.CENTER }, 8)
+
         val screen = actionButton("Screen off", R.drawable.ic_screen_controls, config.screen, "Toggle screen controls") { toggleScreen() }
-        val soundButton = actionButton("Audio off", R.drawable.ic_volume_slider, config.audio, "Toggle audio controls") { toggleAudio() }
-        actions.addView(screen, LinearLayout.LayoutParams(-2, -2))
-        actions.addView(soundButton, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(10) })
-        screenAction = screen; audioAction = soundButton
+        val audio = actionButton("Audio off", R.drawable.ic_volume_slider, config.audio, "Toggle audio controls") { toggleAudio() }
+        actions.addView(screen, LinearLayout.LayoutParams(0, dp(56), 1f))
+        actions.addView(audio, LinearLayout.LayoutParams(0, dp(56), 1f).apply { marginStart = dp(8) })
+        screenAction = screen; audioAction = audio
         refreshStatus(); scroll.post { scroll.scrollTo(0, y) }
     }
-    private fun summary(config: SleepConfig, plan: SleepPlan): String = when {
-        config.screen && plan.message != null -> plan.message
-        config.screen && !plan.active -> "Screen scheduled · Audio ${if (config.audio) "on" else "off"}"
-        else -> "Screen ${if (config.screen) "on" else "off"} · Audio ${if (config.audio) "on" else "off"}"
+
+    private fun moreOptions(anchor: View) {
+        PopupMenu(this, anchor).apply {
+            menu.add("How to use").setOnMenuItemClickListener { help(); true }
+            menu.add("About & privacy").setOnMenuItemClickListener { about(); true }
+            menu.add("Licenses").setOnMenuItemClickListener {
+                startActivity(Intent(this@MainActivity, LicensesActivity::class.java)); true
+            }
+        }.show()
+    }
+
+    private fun help() {
+        MaterialAlertDialogBuilder(this).setTitle("Quiet Night")
+            .setMessage("Screen and Audio work independently.\n\nWarmth adds a tint; Dim darkens the display. Set either to 0% to turn it off. System brightness stays unchanged.\n\nSchedule applies to Screen only. Drag the dial or tap Start and End for exact times.\n\nWith Audio on, use your volume keys. Volume-down adds quiet steps below the usual minimum, then mutes after −30 dB. Volume-up brings sound back.\n\nFor notifications and Quick Settings, enable full-screen dimming. The accessibility service only draws a filter; it cannot read screens or control gestures.")
+            .setNeutralButton("Full-screen dimming") { _, _ -> screenOverlayHelp() }
+            .setPositiveButton("Done", null).show()
+    }
+
+    private fun screenOverlayHelp() {
+        MaterialAlertDialogBuilder(this).setTitle("Full-screen dimming")
+            .setMessage("Enable Quiet Night screen dimming in Accessibility settings to include notifications and Quick Settings.\n\nIt only draws a touch-through filter. It does not read screen content, observe actions, or control gestures. System brightness stays unchanged.")
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Open settings") { _, _ ->
+                timingPermission.launch(ScreenOverlayService.settingsIntent())
+            }.show()
     }
     private fun refreshStatus() {
         val config = SleepSettings.read(this); val plan = SleepSchedule.plan(config)
@@ -282,14 +334,16 @@ class MainActivity : AppCompatActivity() {
         if (config.audio && ControlLive.audioState == null) audioAction?.text = "Audio starting"
         val gain = if (Prefs.isLevelInQuietZone(this)) (-Prefs.getAttenuation(this)).coerceIn(0f, 30f) else 0f
         quietIndicator?.setLevel(gain, config.audio && ControlLive.audioState != null, ControlLive.audioState)
-        quietHint?.text = when {
-            !config.audio -> "Audio controls are off."
-            !ControlLive.running -> "Waiting for the audio service…"
-            ControlLive.effect == ControlLive.Effect.NONE -> "This device did not provide an audio effect. Quiet steps may not change the sound."
-            StreamVolumeController(this).inCellularCall() -> "Quiet steps cannot change cellular-call audio."
-            ControlLive.effect == ControlLive.Effect.FALLBACK -> "Compatibility audio mode. Attenuation support varies by device."
-            else -> "Use the phone’s volume buttons. Each press moves one quiet step; after −30 dB another volume-down press mutes, and volume-up climbs back out."
+        val hint = when {
+            !config.audio -> ""
+            !ControlLive.running -> "Starting…"
+            ControlLive.effect == ControlLive.Effect.NONE -> "Quiet steps unavailable on this device"
+            StreamVolumeController(this).inCellularCall() -> "Unavailable during cellular calls"
+            ControlLive.effect == ControlLive.Effect.FALLBACK -> "Compatibility mode · use volume keys"
+            else -> "Use volume keys"
         }
+        quietHint?.text = hint
+        quietHint?.visibility = if (hint.isEmpty()) View.GONE else View.VISIBLE
     }
     private fun styleAction(action: ExtendedFloatingActionButton?, name: String, on: Boolean, ready: Boolean, active: Boolean) {
         action ?: return
@@ -353,7 +407,7 @@ class MainActivity : AppCompatActivity() {
         val name = volume.activeBluetoothName() ?: return
         val am = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
         val min = maxOf(1, am.getStreamMinVolume(android.media.AudioManager.STREAM_MUSIC)); val max = volume.calibrationMaxIndex()
-        parent.add(button("Headphone setup · $name") {
+        parent.add(button("Headphones · $name") {
             var selected = Prefs.getBluetoothFloor(this, name).coerceIn(min, max)
             val body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(8), dp(24), dp(8)) }
             body.add(text("With audio playing, find the first step you can hear. Previews use normal gain and are limited to steps $min–$max. The setting is saved for this headset name.", 14f, NightColors.secondary))

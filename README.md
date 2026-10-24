@@ -12,14 +12,16 @@ Quiet Night is an independent GPL-3.0 fork of [Granular Volume / Quiet Dial](htt
 
 ## Your evening, in one place
 
+A minimal Material home with wallpaper colors on supported devices. Help, privacy, and licenses live in the overflow menu; only controls and useful status appear on the main screen.
+
 - **Themed app icon:** an adaptive moon-and-star icon follows the launcher’s shape and, on Android 13+ with themed icons enabled, its wallpaper palette. Quick Settings uses the same silhouette and toggles Screen only.
-- **Color intensity:** a fixed red-orange evening tint, adjustable from 0–100%.
-- **Screen dim:** 0–85%, drawn as a touch-through evening overlay. It never changes your saved brightness or adaptive-brightness mode. Use **Dim notifications & Quick Settings** to enable the accessibility screen filter, or allow display over other apps for app-only coverage.
+- **Warmth:** a fixed red-orange evening tint, adjustable from 0–100%.
+- **Dim:** 0–85%, drawn as a touch-through evening overlay. It never changes your saved brightness or adaptive-brightness mode. Use **Include Quick Settings** to enable the accessibility screen filter, or allow display over other apps for app-only coverage.
 - **Always:** keep the selected settings active until paused.
 - **Sunset → sunrise:** calculate daily sun times offline from a saved location. Use optional foreground location access or enter coordinates manually. No background location tracking, geocoding, or internet access.
 - **Custom:** drag either handle on the 24-hour circular slider, including overnight windows. Start and End buttons offer precise, accessible time entry.
 - **Audio button:** independently enable the media-attenuation engine. A read-only Quiet Dial indicator shows media mute, normal volume, or the 0–30 dB quiet range; use the phone’s volume keys to change it. There is no attenuation slider.
-- **Screen button:** independently activate screen tint/dimming or arm the selected screen schedule. Exactly two Material extended floating action buttons stay at the bottom right.
+- **Screen button:** independently activate screen tint/dimming or arm the selected screen schedule. Two independent toggles stay in a compact bottom bar.
 - **Quiet steps with volume-down:** volume-down keeps stepping through the quiet range when hardware media volume reaches its audible floor. At −30 dB another press mutes media, and volume-up climbs back out. Cellular and VoIP call volume is not intercepted by this feature.
 - **Bluetooth calibration:** find the first audible media-volume step on Android 13+. Preview controls are capped at four steps above the lowest nonzero index. Calibrations are saved by headset name; uncalibrated users keep the original path without media-route queries.
 - A persistent notification with Stop, plus a screen-only Quick Settings tile. The tile never toggles audio. The notification Stop action stops both; either home button stops its own feature.
@@ -29,7 +31,7 @@ All features are free. No ads, accounts, analytics, purchase prompts, or interne
 ## First run
 
 1. Open Quiet Night and choose your preferred color intensity and dim level.
-2. Use **Screen** and **Audio** at the bottom right independently. For full-screen dimming, tap **Dim notifications & Quick Settings**, then enable **Quiet Night screen dimming** in Android Accessibility settings. The service only draws a filter; it requests no screen-reading, gesture, or key-filtering capabilities. Display-over-other-apps access provides app-only coverage without the service. Audio works without screen permissions; notifications make Stop easier to reach.
+2. Use **Screen** and **Audio** in the bottom bar independently. For full-screen dimming, tap **Include Quick Settings**, then enable **Quiet Night screen dimming** in Android Accessibility settings. The service only draws a filter; it requests no screen-reading, gesture, or key-filtering capabilities. Display-over-other-apps access provides app-only coverage without the service. Audio works without screen permissions; notifications make Stop easier to reach.
 3. For Custom or Sunset mode, grant **scheduled changes** access. This allows exact start/stop boundaries while the app is closed. Without this access, scheduled screen controls stay inactive and explain the missing setup instead of pretending to be armed. Always mode does not need it.
 4. For Sunset, choose a location once. Update it manually when travelling. Sun times follow the phone’s current timezone; polar locations with no sunrise/sunset show a message and can use Custom instead.
 5. Turn on **Audio**. If your headset is silent at the first nonzero step, play audio and open **Headphone setup** to calibrate the first audible step. For BX27 this can be step 2. Volume-down continues into the quiet range using the hardware buttons.
