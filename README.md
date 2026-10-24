@@ -2,8 +2,6 @@
 
 A private, open-source Android wind-down companion. Softer evening light, screen dimming, and media volume below Android’s usual minimum, together on one home screen.
 
-Quiet Night is an independent GPL-3.0 fork of [Granular Volume / Quiet Dial](https://github.com/Rzuss/granular-volume) by Rzuss. It includes the Bluetooth audible-floor fixes developed in this fork. It is not an official upstream release.
-
 <p>
   <img src="docs/quiet-night/home.png" width="300" alt="Quiet Night home with color and dimming sliders">
   <img src="docs/quiet-night/schedule.png" width="300" alt="Custom overnight schedule with start and end handles">
