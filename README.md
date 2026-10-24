@@ -12,6 +12,7 @@ Quiet Night is an independent GPL-3.0 fork of [Granular Volume / Quiet Dial](htt
 
 ## Your evening, in one place
 
+- **Themed app icon:** an adaptive moon-and-star icon follows the launcher’s shape and, on Android 13+ with themed icons enabled, its wallpaper palette. Quick Settings uses the same silhouette and toggles Screen only.
 - **Color intensity:** a fixed red-orange evening tint, adjustable from 0–100%.
 - **Screen dim:** 0–85%, drawn as a touch-through evening overlay. It never changes your saved brightness or adaptive-brightness mode. Use **Dim notifications & Quick Settings** to enable the accessibility screen filter, or allow display over other apps for app-only coverage.
 - **Always:** keep the selected settings active until paused.

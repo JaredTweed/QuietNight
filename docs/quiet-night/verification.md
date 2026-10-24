@@ -11,3 +11,5 @@ The updated debug build was installed on the connected Pixel 8 Pro without clear
 Protected screens, always-on displays, HDR, and OEM restrictions remain outside the guarantee of an overlay. The original Bluetooth-fix branch remains untouched; audit fixes are on feat/sleep-companion.
 
 Android window layering is documented in the [WindowManager.LayoutParams reference](https://developer.android.com/reference/android/view/WindowManager.LayoutParams): application overlays sit below critical system windows. Full-screen mode therefore uses a connected AccessibilityService and TYPE_ACCESSIBILITY_OVERLAY.
+
+The 2026-10-24 icon update adds adaptive launcher resources and an Android 13+ monochrome layer. Launcher and Quick Settings share one moon-and-star vector; the tile refreshes its icon whenever it starts listening. Synthetic [launcher and tile previews](icons.png) cover normal, light-themed, and dark-themed rendering. Tile regression coverage checks both Audio states and verifies that two taps change only Screen, preserving the other settings. All 66 tests, debug assembly, and debug lint pass. The updated debug build was installed without clearing app data.

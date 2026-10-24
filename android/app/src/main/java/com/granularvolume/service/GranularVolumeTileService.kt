@@ -3,6 +3,8 @@ package com.granularvolume.service
 import android.app.PendingIntent
 import android.content.Intent
 import android.os.Build
+import android.graphics.drawable.Icon
+import com.granularvolume.R
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import com.granularvolume.MainActivity
@@ -28,7 +30,9 @@ class GranularVolumeTileService : TileService() {
     private fun updateTile() {
         val config = SleepSettings.read(this)
         qsTile?.apply {
+            icon = Icon.createWithResource(this@GranularVolumeTileService, R.drawable.ic_qs_tile)
             label = "Quiet Night screen"
+            contentDescription = "Screen controls ${if (config.screen) "on" else "off"}"
             state = if (config.screen) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
             if (Build.VERSION.SDK_INT >= 29) subtitle = when {
                 !config.screen -> "Off"

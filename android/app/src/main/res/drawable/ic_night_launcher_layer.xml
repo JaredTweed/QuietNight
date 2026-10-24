@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Keep the symbol inside the adaptive icon's central safe zone for every launcher mask. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/ic_night_symbol" android:inset="20%" />
