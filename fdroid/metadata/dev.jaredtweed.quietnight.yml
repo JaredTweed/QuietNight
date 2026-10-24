@@ -1,0 +1,27 @@
+Categories:
+  - Theming
+  - Volume
+License: GPL-3.0-only
+AuthorName: Jared Tweed
+WebSite: https://github.com/JaredTweed/QuietNight
+SourceCode: https://github.com/JaredTweed/QuietNight
+IssueTracker: https://github.com/JaredTweed/QuietNight/issues
+Changelog: https://github.com/JaredTweed/QuietNight/blob/HEAD/CHANGELOG.md
+
+AutoName: Quiet Night
+
+RepoType: git
+Repo: https://github.com/JaredTweed/QuietNight.git
+
+Builds:
+  - versionName: 2.0.0
+    versionCode: 53
+    commit: 39dfd82afe32995994df6b382e2d0eab0d780145
+    subdir: android/app
+    gradle:
+      - fdroid
+
+AutoUpdateMode: Version quietnight-v%v
+UpdateCheckMode: Tags ^quietnight-v[0-9].*$
+CurrentVersion: 2.0.0
+CurrentVersionCode: 53

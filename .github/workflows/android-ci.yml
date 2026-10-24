@@ -1,7 +1,7 @@
 name: Quiet Night Android CI
 on:
   push:
-    branches: [ main, feat/sleep-companion ]
+    branches: [ main ]
     paths: [ 'android/**', 'fastlane/**', 'tools/**', 'fdroid/**', '.github/workflows/android-ci.yml' ]
   pull_request:
     branches: [ main ]
