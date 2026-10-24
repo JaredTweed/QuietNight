@@ -118,7 +118,7 @@ class QuietLevelIndicator(context: Context) : View(context) {
     private var levelDb = 0f
     private var running = false
     private var readout = "off"
-    init { contentDescription = "Quiet Dial, off"; importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES }
+    init { contentDescription = "Media volume, off"; importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES }
 
     fun setLevel(db: Float, active: Boolean, state: com.granularvolume.audio.FullRangeCoordinator.UiState? = null) {
         val nextDb = db.coerceIn(0f, 30f)
@@ -131,7 +131,7 @@ class QuietLevelIndicator(context: Context) : View(context) {
         }
         if (nextDb == levelDb && active == running && nextReadout == readout) return
         levelDb = nextDb; running = active; readout = nextReadout
-        contentDescription = "Quiet Dial, $readout"
+        contentDescription = "Media volume, $readout"
         invalidate()
     }
 

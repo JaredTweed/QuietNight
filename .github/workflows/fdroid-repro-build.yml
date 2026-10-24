@@ -2,7 +2,7 @@ name: Quiet Night release build
 on:
   workflow_dispatch:
   push:
-    tags: [ 'v*' ]
+    tags: [ 'quietnight-v*' ]
 permissions:
   contents: read
 jobs:
@@ -16,7 +16,7 @@ jobs:
           java-version: '17'
       - uses: android-actions/setup-android@v3
         with:
-          packages: "platform-tools platforms;android-36 build-tools;34.0.0"
+          packages: "platform-tools platforms;android-36 build-tools;35.0.0"
       - uses: gradle/actions/setup-gradle@v4
       - name: Build unsigned release
         working-directory: android

@@ -4,9 +4,9 @@ cd "/d/Claude Projects/claude/Volume control/video/assets"
 FF="/d/Claude Projects/claude/Volume control/ffmpeg-bin/bin/ffmpeg.exe"
 RAW="../raw"
 OUT="../clips"
-FONT="cap.ttf"
+FONT="${QUIETNIGHT_VIDEO_FONT:-/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf}"
 
-# Caption drawtext builder (white Segoe Semibold, dark chip box, near top)
+# Caption drawtext builder (white system sans-serif, dark chip box, near top)
 cap () {
   echo "drawtext=fontfile=${FONT}:text='$1':fontcolor=white:fontsize=50:box=1:boxcolor=0x0a0e1d@0.55:boxborderw=26:x=(w-text_w)/2:y=196:line_spacing=8"
 }

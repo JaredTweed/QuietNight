@@ -1,12 +1,3 @@
-# Keep all AudioEffect framework classes — accessed reflectively / via JNI.
--keep class android.media.audiofx.** { *; }
-
-# Keep our own classes (Service, receivers, etc.) intact for the framework.
--keepclassmembers class com.granularvolume.** { *; }
-
-# Framework audio classes are part of the platform — silence missing-class warnings.
--dontwarn android.media.audiofx.**
-
-# 1.6.0: Play Billing references Google datatransport telemetry, which is excluded on purpose
-# (see build.gradle.kts). Billing catches its absence at runtime.
--dontwarn com.google.android.datatransport.**
+# AGP keeps manifest-declared activities, services, and receivers automatically.
+# Libraries supply their own consumer rules. Do not blanket-keep application code
+# or suppress missing proprietary SDK classes in this entirely FOSS build.

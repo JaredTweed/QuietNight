@@ -52,6 +52,12 @@ The design favors dim red-orange light, which contains less short-wavelength lig
 - Sunset/sunrise calculations are an offline approximation including standard atmospheric refraction, not an astronomical instrument. Exact alarms still depend on Android permissions and the OS; force-stopping the app suppresses scheduled operation until it is opened again.
 - The independent package is `dev.jaredtweed.quietnight` (`.debug` for test builds). It can coexist with upstream Quiet Dial. Do not run two audio-control services simultaneously. The old app’s private settings cannot be imported automatically across package IDs; calibrate the new app once.
 
+## F-Droid submission
+
+The submission is prepared for F-Droid signing and an entirely FOSS build; the app is not yet listed. See [F-Droid readiness and review notes](fdroid/README.md) for the recipe, verification evidence, release process, and remaining review requirements. The English Fastlane listing describes this fork; upstream listings are retained only in Git history.
+
+[Privacy policy](PRIVACY.md) · [Source](https://github.com/JaredTweed/QuietNight) · [Report an issue](https://github.com/JaredTweed/QuietNight/issues)
+
 ## Build and test
 
 JDK 17 and Android SDK 36 are required. No signing secrets are needed for debug builds.

@@ -6,7 +6,7 @@
     <string name="gv_licenses_oss">Open source components</string>
     <string name="gv_licenses_proprietary">Other components</string>
     <string name="gv_licenses_own">This app</string>
-    <string name="gv_licenses_own_body">Quiet Night is itself free software under the GNU General Public License version 3.0. The complete source is at github.com/JaredTweed/granular-volume.</string>
+    <string name="gv_licenses_own_body">Quiet Night is itself free software under the GNU General Public License version 3.0. The complete source is at github.com/JaredTweed/QuietNight.</string>
     <string name="gv_licenses_apache">Apache License 2.0, full text</string>
     <string name="gv_screen_overlay_label">Quiet Night screen dimming</string>
     <string name="gv_screen_overlay_description">Draws a touch-through tint and dimming filter over notifications and Quick Settings. Does not read screen content, observe actions, control gestures, or change system brightness. Turn Screen off in Quiet Night to remove the filter.</string>

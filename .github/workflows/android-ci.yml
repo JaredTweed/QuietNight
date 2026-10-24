@@ -2,7 +2,7 @@ name: Quiet Night Android CI
 on:
   push:
     branches: [ main, feat/sleep-companion ]
-    paths: [ 'android/**', '.github/workflows/android-ci.yml' ]
+    paths: [ 'android/**', 'fastlane/**', 'tools/**', 'fdroid/**', '.github/workflows/android-ci.yml' ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -19,8 +19,10 @@ jobs:
           java-version: '17'
       - uses: android-actions/setup-android@v3
         with:
-          packages: "platform-tools platforms;android-36 build-tools;34.0.0"
+          packages: "platform-tools platforms;android-36 build-tools;35.0.0"
       - uses: gradle/actions/setup-gradle@v4
+      - name: Check F-Droid listing
+        run: python3 tools/check_fdroid_metadata.py
       - name: Build and run regression tests
         working-directory: android
         run: ./gradlew :app:assembleFdroidDebug :app:testFdroidDebugUnitTest :app:lintFdroidDebug :app:assembleFdroidRelease --no-daemon --stacktrace

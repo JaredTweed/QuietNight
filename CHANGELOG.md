@@ -1,3 +1,15 @@
+# Quiet Night
+
+## 2.0.0 (version code 53)
+
+- Independent screen and audio controls in a compact, themed Material interface.
+- Screen warmth and dimming with custom and offline sunset-to-sunrise schedules.
+- Optional accessibility overlay over notifications and Quick Settings, without screen-reading capabilities.
+- Six quiet media steps, media mute after -30 dB, and Bluetooth audible-floor calibration.
+- Separate application ID, themed moon-and-star icon, and GPL-3.0-only FOSS build.
+
+The history below belongs to the upstream Granular Volume / Quiet Dial project.
+
 # Changelog
 
 All notable changes to Granular Volume are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).

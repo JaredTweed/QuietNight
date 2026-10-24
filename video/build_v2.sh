@@ -11,7 +11,7 @@ FF="/d/Claude Projects/claude/Volume control/ffmpeg-bin/bin/ffmpeg.exe"
 FPB="/d/Claude Projects/claude/Volume control/ffmpeg-bin/bin/ffprobe.exe"
 RAW="../raw"
 OUT="../clips_v2"
-FONT="cap.ttf"
+FONT="${QUIETNIGHT_VIDEO_FONT:-/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf}"
 mkdir -p "$OUT"
 
 # Unified grade applied to every segment: slight contrast+saturation lift,

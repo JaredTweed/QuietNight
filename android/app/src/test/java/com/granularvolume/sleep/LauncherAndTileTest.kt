@@ -60,6 +60,14 @@ class LauncherAndTileTest {
         val round = app.getDrawable(R.mipmap.ic_launcher_round) as AdaptiveIconDrawable
         assertNotNull(round.monochrome)
 
+        val storeIcon = Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888)
+        launcher.setBounds(0, 0, 512, 512)
+        launcher.draw(Canvas(storeIcon))
+        val iconFile = File("build/reports/screenshots/quiet-night-icon.png")
+        iconFile.parentFile?.mkdirs()
+        iconFile.outputStream().use { storeIcon.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        storeIcon.recycle()
+
         // Preview system-selected palettes, without baking these colors into the app's icon.
         val bitmap = Bitmap.createBitmap(960, 260, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)

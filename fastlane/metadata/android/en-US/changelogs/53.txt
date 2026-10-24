@@ -1,0 +1,1 @@
+First Quiet Night release. Independent screen and audio controls; scheduled tint and dimming; optional filtering over Quick Settings; six quiet media-volume steps followed by mute; Bluetooth audible-floor calibration; compact Material UI and themed launcher icon.

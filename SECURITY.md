@@ -1,13 +1,7 @@
-# Security Policy
+# Security policy
 
-## Reporting a vulnerability
+Report security issues privately through [GitHub's vulnerability reporting](https://github.com/JaredTweed/QuietNight/security/advisories/new). Use the [issue tracker](https://github.com/JaredTweed/QuietNight/issues) for ordinary bugs. Reports for this fork should go to Quiet Night's maintainer, not to the upstream Granular Volume author.
 
-If you find a security issue in Granular Volume, please report it privately rather than opening a public issue. Email the maintainer at rotemzus@gmail.com. You can expect an acknowledgement within a few days.
+The current supported release line is Quiet Night 2.x. The app is offline and has no advertising or analytics SDK. Optional coordinates, settings, and headphone calibration remain on the device. See [PRIVACY.md](PRIVACY.md) for special-access details.
 
-## Scope and data handling
-
-Granular Volume collects no personal data, makes no network requests, and contains no analytics or advertising SDKs. It operates entirely on device. The only sensitive surfaces are the system permissions it requests, which are documented in the README.
-
-## Signing keys
-
-The application signing keystore is intentionally excluded from this repository and must never be committed. Release artifacts are signed locally and through Google Play App Signing.
+The F-Droid submission uses F-Droid signing. No developer signing keystore, password, API token, or service credential is required to build the unsigned release. Do not commit signing keys or use a debug key for a production release.

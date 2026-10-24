@@ -140,7 +140,7 @@ class HomeScreenTest {
             val activity = controller.get()
             val all = views(activity.window.decorView)
             val indicator = all.filterIsInstance<QuietLevelIndicator>().single()
-            assertEquals("Quiet Dial, −15 dB", indicator.contentDescription)
+            assertEquals("Media volume, −15 dB", indicator.contentDescription)
             assertFalse(indicator.isClickable)
             assertEquals(2, all.filterIsInstance<Slider>().size)
             screenshots(activity, "quiet-night-audio", audio = true)

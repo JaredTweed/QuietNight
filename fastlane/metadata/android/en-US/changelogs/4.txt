@@ -1,1 +1,0 @@
-Rebuilt setup screen and a smoother floating dial. Drag it anywhere, tuck it to an edge, and close it with one tap. Stability and compatibility fixes.

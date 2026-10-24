@@ -475,10 +475,10 @@ class MainActivity : AppCompatActivity() {
     }
     private fun about() {
         MaterialAlertDialogBuilder(this).setTitle("A quieter kind of evening")
-            .setMessage("Quiet Night is a free, open-source fork of Granular Volume by Rzuss.\n\nEverything stays on your device. No ads, accounts, tracking, or internet permission. Location is optional and saved only to calculate sun times; there is no background location tracking.\n\nScreen and audio controls are independent. Evening light uses a touch-through display overlay, so it never changes your saved brightness or adaptive-brightness mode. Enable accessibility screen dimming to cover notifications and Quick Settings. This service only draws the filter; it does not read screen content or control gestures. Some protected screens and always-on displays may still hide filters.\n\nGPL-3.0. Source: github.com/JaredTweed/granular-volume")
+            .setMessage("Quiet Night is a free, open-source fork of Granular Volume by Rzuss.\n\nEverything stays on your device. No ads, accounts, tracking, or internet permission. Location is optional and saved only to calculate sun times; there is no background location tracking.\n\nScreen and audio controls are independent. Evening light uses a touch-through display overlay, so it never changes your saved brightness or adaptive-brightness mode. Enable accessibility screen dimming to cover notifications and Quick Settings. This service only draws the filter; it does not read screen content or control gestures. Some protected screens and always-on displays may still hide filters.\n\nGPL-3.0. Source: github.com/JaredTweed/QuietNight")
             .setNeutralButton("Source code") { _, _ ->
-                runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/JaredTweed/granular-volume"))) }
-                    .onFailure { toast("Source: github.com/JaredTweed/granular-volume") }
+                runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/JaredTweed/QuietNight"))) }
+                    .onFailure { toast("Source: github.com/JaredTweed/QuietNight") }
             }.setPositiveButton("Done", null).show()
     }
     private fun toast(message: String) = Toast.makeText(this, message, Toast.LENGTH_SHORT).show()

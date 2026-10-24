@@ -1,0 +1,14 @@
+Quiet Night is an independent fork of Granular Volume / Quiet Dial by Rzuss and contributors.
+Upstream source: https://github.com/Rzuss/granular-volume
+Quiet Night source: https://github.com/JaredTweed/QuietNight
+
+The application source is distributed under GPL-3.0-only; see LICENSE.
+Quiet Night changes are by Jared Tweed and contributors. Original authorship and upstream history are retained.
+
+Runtime third-party components include AndroidX, Material Components for Android,
+Kotlin, and Kotlin Coroutines, under Apache-2.0. Attribution and the Apache-2.0
+license are available inside the app under More options > Licenses.
+
+The only bundled executable build binary is the official Gradle wrapper JAR
+(Apache-2.0). Gradle distributions are downloaded from services.gradle.org with
+SHA-256 verification. Historical marketing assets are not bundled in the APK.
