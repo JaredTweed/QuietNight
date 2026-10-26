@@ -51,8 +51,10 @@ def main():
     fingerprint = hashlib.sha256(ssl.PEM_cert_to_DER_cert(certificate)).hexdigest()
     assert re.search(r'^AllowedAPKSigningKeys:(?: ' + fingerprint + r'|\n  - ' + fingerprint + r')$',
                      recipe, re.MULTILINE), 'F-Droid must pin the public release certificate'
-    assert ('Binaries: https://github.com/JaredTweed/QuietNight/releases/download/'
-            'quietnight-v%v/QuietNight-%v.apk') in recipe, 'Signed reference APK URL is missing'
+    reference_url = ('https://github.com/JaredTweed/QuietNight/releases/download/'
+                     'quietnight-v%v/QuietNight-%v.apk')
+    assert re.search(r'^Binaries:\s+' + re.escape(reference_url) + r'$', recipe,
+                     re.MULTILINE), 'Signed reference APK URL is missing'
     assert re.search(r'^AutoUpdateMode: Version$', recipe, re.MULTILINE), 'Tag updates require plain Version mode'
     print(f'F-Droid listing OK: {app_name}, version code {code}, {len(screenshots)} screenshots')
 

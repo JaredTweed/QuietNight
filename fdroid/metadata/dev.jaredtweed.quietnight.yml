@@ -12,7 +12,8 @@ AutoName: Quiet Night
 
 RepoType: git
 Repo: https://github.com/JaredTweed/QuietNight.git
-Binaries: https://github.com/JaredTweed/QuietNight/releases/download/quietnight-v%v/QuietNight-%v.apk
+Binaries: 
+  https://github.com/JaredTweed/QuietNight/releases/download/quietnight-v%v/QuietNight-%v.apk
 
 Builds:
   - versionName: 2.1.0
