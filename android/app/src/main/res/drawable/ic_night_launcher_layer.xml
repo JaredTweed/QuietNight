@@ -1,4 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Keep the symbol inside the adaptive icon's central safe zone for every launcher mask. -->
-<inset xmlns:android="http://schemas.android.com/apk/res/android"
-    android:drawable="@drawable/ic_night_symbol" android:inset="20%" />
+<!-- Native adaptive-icon canvas: transparent outside the centered moon and star. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <group android:translateX="21.6" android:translateY="21.6"
+        android:scaleX="0.9" android:scaleY="0.9">
+        <group android:translateX="-12" android:translateY="-12">
+            <path android:fillColor="#FFFFFFFF"
+                android:pathData="M48,19A29,29 0,1 0,77 48A25,25 0,0 1,48 19Z" />
+            <path android:fillColor="#FFFFFFFF"
+                android:pathData="M72,17L74,23L80,25L74,27L72,33L70,27L64,25L70,23Z" />
+        </group>
+    </group>
+</vector>

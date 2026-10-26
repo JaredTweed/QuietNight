@@ -318,7 +318,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun screenOverlayHelp() {
         MaterialAlertDialogBuilder(this).setTitle("Full-screen dimming")
-            .setMessage("Enable Quiet Night screen dimming in Accessibility settings to include notifications and Quick Settings.\n\nIt only draws a touch-through filter. It does not read screen content, observe actions, or control gestures. System brightness stays unchanged.")
+            .setMessage("Enable Quiet Night screen dimming in Accessibility settings to automatically include notifications and Quick Settings whenever Screen is on. Leave the accessibility shortcut off; no floating button is needed.\n\nIt only draws a touch-through filter. It does not read screen content, observe actions, or control gestures. System brightness stays unchanged.")
             .setNegativeButton("Cancel", null)
             .setPositiveButton("Open settings") { _, _ ->
                 timingPermission.launch(ScreenOverlayService.settingsIntent())
