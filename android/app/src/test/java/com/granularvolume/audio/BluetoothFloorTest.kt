@@ -178,6 +178,102 @@ class BluetoothFloorTest {
         }
     }
 
+    @Test fun backgroundCoalescingKeepsEveryObservableVolumeUpStep() {
+        calibratedQuiet(-30f)
+        // Three presses occur before Android delivers only the most recent transition.
+        index = 5 // Calibrated floor 2 -> 3 -> 4 -> 5.
+        coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 4, 5)
+        assertEquals(-15f, audio.attenuationDb.value)
+        assertEquals(2, index)
+    }
+
+    @Test fun queuedOlderBroadcastsCannotDoubleCountTheAlreadyReconciledBurst() {
+        calibratedQuiet(-30f)
+        index = 5
+        coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 2, 3)
+        assertEquals(-15f, audio.attenuationDb.value)
+        coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 3, 4)
+        coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 4, 5)
+        assertEquals(-15f, audio.attenuationDb.value)
+        assertEquals(2, index)
+    }
+
+    @Test fun burstBeyondQuietRangeKeepsTheRemainingHardwareSteps() {
+        calibratedQuiet(-10f)
+        index = 6 // Four up presses; two quiet steps, then two hardware steps.
+        coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 5, 6)
+        assertEquals(0f, audio.attenuationDb.value)
+        assertFalse(coordinator.zoneQuiet)
+        assertEquals(4, index)
+    }
+
+    @Test fun coalescedUnmuteOnCalibratedHeadsetKeepsSubsequentPresses() {
+        route(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP)
+        Prefs.setBluetoothFloor(context, "Headset", 5)
+        coordinator.applyQuiet(-30f)
+        index = 4
+        coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 5, 4)
+        assertEquals(0, index)
+        index = 3 // First up restores audibility; two more up presses ease the gain.
+        coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 2, 3)
+        assertEquals(5, index)
+        assertEquals(-20f, audio.attenuationDb.value)
+    }
+
+    @Test fun successiveBackgroundBurstsAndLateAcknowledgementsDoNotLoseOrReplaySteps() {
+        calibratedQuiet(-30f)
+        index = 5
+        coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 4, 5)
+        assertEquals(-15f, audio.attenuationDb.value)
+        index = 4
+        // Acknowledgement of the first correction arrives after two newer presses.
+        coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 5, 2)
+        coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 3, 4)
+        assertEquals(-5f, audio.attenuationDb.value)
+        assertEquals(2, index)
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(2))
+        coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 4, 2)
+        assertEquals(-5f, audio.attenuationDb.value)
+    }
+
+    @Test fun aLargeObservedRiseAdvancesStepsWithoutASecondAttempt() {
+        calibratedQuiet(-30f)
+        index = 6
+        coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 2, 6)
+        assertEquals(-10f, audio.attenuationDb.value)
+        assertEquals(2, index)
+    }
+
+    @Test fun staleDownNotificationsCannotDeepenTheQuietRangeTwice() {
+        calibratedQuiet(-20f)
+        index = 1
+        coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 2, 1)
+        assertEquals(-25f, audio.attenuationDb.value)
+        coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 2, 1)
+        assertEquals(-25f, audio.attenuationDb.value)
+        assertEquals(2, index)
+    }
+
+    @Test fun coalescedDownPressesReachMuteAfterExhaustingTheQuietRange() {
+        route(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP)
+        Prefs.setBluetoothFloor(context, "Headset", 5)
+        coordinator.applyQuiet(-20f)
+        index = 2
+        coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 3, 2)
+        assertEquals(-30f, audio.attenuationDb.value)
+        assertEquals(0, index)
+    }
+
+    @Test fun missedMuteNotificationDoesNotStrandAHeadsetBelowItsAudibleFloor() {
+        route(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP)
+        Prefs.setBluetoothFloor(context, "Headset", 5)
+        coordinator.applyQuiet(-30f)
+        index = 1 // Android dropped the down-to-mute notification before this up press.
+        coordinator.onExternalVolumeChange(AudioManager.STREAM_MUSIC, 0, 1)
+        assertEquals(-30f, audio.attenuationDb.value)
+        assertEquals(5, index)
+    }
+
     @Test fun selfWritesAreMatchedByTransitionAndConsumedOnlyOnce() {
         index = 0
         volume.setIndex(AudioManager.STREAM_MUSIC, 2)

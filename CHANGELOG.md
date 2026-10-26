@@ -1,5 +1,11 @@
 # Quiet Night
 
+## Unreleased
+
+- Preserve accumulated quiet-volume steps when Android batches background volume notifications.
+- Carry surplus volume-up steps into normal hardware volume, and ignore late notifications already covered by a correction.
+- Handle coalesced mute/unmute and calibrated-headset transitions without adding permissions or background polling.
+
 ## 2.0.0 (version code 53)
 
 - Independent screen and audio controls in a compact, themed Material interface.

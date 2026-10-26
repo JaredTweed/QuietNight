@@ -4,7 +4,6 @@ import android.content.Context
 import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
-import android.os.SystemClock
 import android.util.Log
 import com.granularvolume.util.Prefs
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,18 +27,11 @@ import kotlinx.coroutines.flow.asStateFlow
  *    Media-stream mute (index 0), NOT a global-gain mute, so alarms keep ringing. Reversible:
  *    unmute restores the exact previous index. Slider movement while muted cancels mute first.
  *
- *  ABSORB POLICY (external volume changes while in the quiet zone)
- *    THE INVARIANT: corrections only ever LOWER hardware volume.
- *    - our own writes: ignored (self-change flag)
- *    - single-step button press: absorbed — hardware back to floor, attenuation eases 5 dB;
- *      the press that eases the gain to 0 also EXITS the zone, so the next press reaches the
- *      hardware untouched (1.5.0 — the pre-fix state was a black hole a one-star review
- *      described verbatim: "keeps setting the volume back to zero no matter how many times")
- *    - large upward jump: the FIRST inside the window is defended (floor restored, gain
- *      kept — the sleeping-baby case); a SECOND inside the window is a human insisting and
- *      wins outright: gain cleared, zone exited, their level stands
- *    - any downward change: never fought
- *    - touching our own dial always ends an earlier surrender.
+ *  EXTERNAL VOLUME CHANGES
+ *    Android can coalesce background broadcasts. Reconcile the current hardware index
+ *    against our last applied anchor, rather than interpreting one notification as one key.
+ *    Upward movement advances the quiet ladder, with surplus steps carried into normal
+ *    hardware volume. Late broadcasts cannot replay an already reconciled burst.
  */
 class FullRangeCoordinator(
     context: Context,
@@ -234,11 +226,8 @@ class FullRangeCoordinator(
         }
     }
 
-    // Fight-loop breaker state.
-    private var correctionTimesMs = ArrayDeque<Long>()
-    @Volatile
-    var surrendered: Boolean = false
-        private set
+    // Last hardware level accounted for by the quiet ladder; reset when the route changes.
+    private var quietHardwareAnchor = streamVol.index(AudioManager.STREAM_MUSIC)
 
     /**
      * The audio mode flipped (call started or ended), so [StreamVolumeController.activeStream]
@@ -337,7 +326,7 @@ class FullRangeCoordinator(
             preMuteIndex = if (current > 0) current
                            else streamVol.minAudibleIndex(AudioManager.STREAM_MUSIC)
         }
-        surrendered = false
+        quietHardwareAnchor = streamVol.index(AudioManager.STREAM_MUSIC)
         notifyUi()
     }
 
@@ -388,9 +377,6 @@ class FullRangeCoordinator(
     fun applyUpper(pos: Int) {
         if (lockedProvider()) { onLockedInteraction?.invoke(null); return }
         if (isMuted) cancelMute()
-        // A touch on the dial is the user telling us who is in charge again: any earlier
-        // surrender to external volume changes ends here.
-        surrendered = false
         val stream = streamVol.activeStream()
         val curve = mediaCurve
         if (stream == AudioManager.STREAM_MUSIC && curve != null) {
@@ -428,7 +414,6 @@ class FullRangeCoordinator(
         // class must never do. VoIP calls fall through and work normally.
         if (streamVol.inCellularCall()) { onQuietUnavailable?.invoke(); notifyUi(); return }
         if (isMuted) cancelMute()
-        surrendered = false
         val media = AudioManager.STREAM_MUSIC
         val floor = streamVol.minAudibleIndex(media)
         val raiseToCalibratedFloor = floor > maxOf(1, am.getStreamMinVolume(media)) &&
@@ -452,6 +437,7 @@ class FullRangeCoordinator(
             audioController.setAttenuation(stepDb, AudioController.GainSource.QUIET_STEP)
         }
         zoneQuiet = true
+        quietHardwareAnchor = streamVol.index(media)
         notifyUi()
     }
 
@@ -471,7 +457,6 @@ class FullRangeCoordinator(
         audioController.setAttenuation(0f, AudioController.GainSource.SYSTEM)
         isMuted = false
         zoneQuiet = false
-        surrendered = false
         notifyUi()
     }
 
@@ -531,122 +516,67 @@ class FullRangeCoordinator(
 
     /**
      * An external volume change was observed on [stream] (old [from] → new [to]).
-     * Only explicit key actions may restore the audible floor; other corrections only lower volume.
+     * Reconcile observable movement without assuming Android delivered every intermediate event.
+     * Returning from silent calibrated indices is the only upward correction below the floor.
      */
     fun onExternalVolumeChange(stream: Int, from: Int, to: Int) {
         if (streamVol.wasSelfChange(stream, from, to)) return
-        if (stream == AudioManager.STREAM_MUSIC &&
-            !streamVol.inCall() && !isMuted && to < from && !lockedProvider()) {
-            val floor = streamVol.minAudibleIndex(stream)
-            if (from <= floor && to < floor) {
-                val current = audioController.attenuationDb.value
-                if (zoneQuiet && current <= Prefs.ATTENUATION_MIN + 0.01f) {
-                    // The quiet range has run out. Continue into hardware mute so holding
-                    // volume-down reaches true silence instead of stopping at -30 dB.
-                    streamVol.muteMedia()
-                    notifyUi()
-                    return
-                }
-                val next = if (zoneQuiet) (current - VolumeCurve.RUNG_DB)
-                    .coerceAtLeast(Prefs.ATTENUATION_MIN) else -VolumeCurve.RUNG_DB
-                // Apply the quieter gain before restoring a non-muted hardware index.
-                audioController.setAttenuation(next, AudioController.GainSource.SYSTEM)
-                streamVol.setIndex(stream, floor)
-                zoneQuiet = true
-                notifyUi()
-                return
-            }
+        if (stream != AudioManager.STREAM_MUSIC) {
+            maybeFlashUpper(stream, from, to)
+            notifyUi()
+            return
         }
-        // 1.7.1: a rise on the media stream that we did not write ends our mute. The dial
-        // kept reading MUTE over audible sound, and the next tap on a chevron "unmuted" by
-        // restoring the level from before the mute, a jump louder from a control labelled
-        // quieter. The keys have chosen; nothing is restored.
-        if (isMuted && stream == AudioManager.STREAM_MUSIC && to > from) {
+        // Notification extras can be old, or only describe the LAST key in a background burst.
+        val observed = streamVol.index(stream)
+        val floor = streamVol.minAudibleIndex(stream)
+        if (!streamVol.inCall() && !isMuted && to < from && !lockedProvider() &&
+            from <= floor && observed <= to && observed < floor && (!zoneQuiet || observed < quietHardwareAnchor)) {
+            val current = if (zoneQuiet) audioController.attenuationDb.value else 0f
+            val steps = (floor - observed).coerceAtLeast(1)
+            val next = QuietVolumeSteps.fall(current, steps, floor)
+            // Attenuate before restoring a headset's audible hardware floor.
+            audioController.setAttenuation(next.gainDb, AudioController.GainSource.SYSTEM)
+            if (next.hardwareIndex == 0) streamVol.muteMedia() else streamVol.setIndex(stream, next.hardwareIndex)
+            quietHardwareAnchor = next.hardwareIndex
+            zoneQuiet = true
+            notifyUi()
+            return
+        }
+        if (isMuted && to > from && observed > 0) {
             isMuted = false
             if (inQuietZone()) {
-                // Back in the quiet zone at the step held before the mute: the stream belongs
-                // at its floor there, and lowering is always allowed.
-                streamVol.lowerTo(stream, streamVol.minAudibleIndex(stream))
+                streamVol.lowerTo(stream, floor)
+                quietHardwareAnchor = streamVol.index(stream)
                 notifyUi()
                 return
             }
         }
-        if (!inQuietZone() || stream != AudioManager.STREAM_MUSIC) {
-            // Upper zone / other stream: display sync only — plus the 1.4.4 press
-            // acknowledgement when the press moved the index but not the visible bar.
+        if (!inQuietZone()) {
             maybeFlashUpper(stream, from, to)
             notifyUi()
             return
         }
         if (isMuted) { notifyUi(); return }
         if (to <= from) {
-            // Downward external change (safe-volume, user intent to be quieter): never fought.
-            // 1.4.4: a genuine down-press here changes nothing the quiet bars render, so
-            // acknowledge it on the current quiet bar (to == from never broadcasts).
+            // Only a current downward observation can move the anchor. A late correction
+            // must not hide newer upward movement which has not been reconciled yet.
+            if (observed == to) quietHardwareAnchor = observed
             if (to < from) emitFlash(FlashTarget.QUIET_CURRENT)
             notifyUi()
             return
         }
-        if (surrendered) { notifyUi(); return }
-
-        val floor = streamVol.minAudibleIndex(stream)
-        val current = audioController.attenuationDb.value
-        if (from == 0 && to > 0 && to < floor && to - from == 1 && !streamVol.inCall()) {
-            // Explicit volume-up after mute: recover the headset's first audible step
-            // at the existing quiet gain, never the old pre-mute loudness.
-            streamVol.setIndex(stream, floor)
-            notifyUi()
-            return
-        }
-        if (floor > maxOf(1, am.getStreamMinVolume(stream)) && to <= floor) {
-            // Crossing a headset's silent index into its calibrated floor is already
-            // a hardware increase. Do not also ease the gain by 5 dB.
-            notifyUi()
-            return
-        }
-        if (to - from == 1) {
-            // Single button step up: absorb — back to floor, attenuation eases 5 dB.
-            // Easing is cooperative progress, not a fight, so it never consumes the
-            // correction budget: climbing from -30 takes six quick presses and every
-            // one of them must land.
-            val eased = (current + VolumeCurve.RUNG_DB).coerceAtMost(0f)
-            streamVol.lowerTo(stream, floor)
-            audioController.setAttenuation(eased, AudioController.GainSource.SYSTEM)
-            if (eased >= 0f) {
-                // The press that climbs OUT of the quiet zone. Before 1.5.0 this state
-                // (zoneQuiet with zero gain) was a black hole: every further press was
-                // confiscated back to the floor while the gain had nowhere left to ease,
-                // which a user experiences as "it keeps setting the volume back to zero
-                // no matter how many times I turn it up" — reported verbatim in a
-                // one-star review on 2026-09-01 and reproduced on an emulator the same
-                // day. Handing the zone flag back here means the NEXT press reaches the
-                // hardware untouched, so the ladder stays continuous: 5 dB per press all
-                // the way from -30 to the device maximum.
-                zoneQuiet = false
-                Log.i(tag, "Absorbed final step: quiet zone exited, hardware presses now pass")
-            } else {
-                Log.i(tag, "Absorbed +1 step: attenuation ${current} -> ${eased}")
-            }
-        } else {
-            // Large jump (an app set 70%). The first one inside the window is defended:
-            // floor restored, attenuation kept — this is the sleeping-baby case, where a
-            // media app decides to blast and the whole point of the app is that it loses.
-            // A SECOND large raise inside the window cannot plausibly be an app command
-            // repeating coincidentally; it is a person dragging the system slider again
-            // because the first drag "didn't take". A person outranks the quiet zone:
-            // surrender completely — accept their level, clear the gain, exit the zone —
-            // because an app that keeps snapping the slider to zero against a human hand
-            // is indistinguishable from malware to that human.
-            if (!registerCorrection()) {
-                Log.w(tag, "Second large raise inside the window — human insists, handing volume back")
-                surrendered = true
-                zoneQuiet = false
-                audioController.setAttenuation(0f, AudioController.GainSource.SYSTEM)
-                // No lowerTo: the user's requested index stands.
-            } else {
-                streamVol.lowerTo(stream, floor)
-                Log.i(tag, "Defended quiet zone against jump $from -> $to")
-            }
+        // A current up event can reveal a preceding down/mute notification Android dropped.
+        val anchor = if (observed == to && observed < quietHardwareAnchor) from else quietHardwareAnchor
+        val next = QuietVolumeSteps.rise(audioController.attenuationDb.value, anchor,
+            observed, floor, streamVol.maxIndex(stream))
+        if (next != null) {
+            // Lower coarse hardware first, then ease gain. Surplus presses survive the seam.
+            // Raising is only needed to recover a calibrated headset from its silent indices.
+            if (next.hardwareIndex < observed) streamVol.lowerTo(stream, next.hardwareIndex)
+            else if (next.hardwareIndex > observed) streamVol.setIndex(stream, next.hardwareIndex)
+            audioController.setAttenuation(next.gainDb, AudioController.GainSource.SYSTEM)
+            quietHardwareAnchor = next.hardwareIndex
+            zoneQuiet = next.quiet
         }
         notifyUi()
     }
@@ -669,19 +599,6 @@ class FullRangeCoordinator(
         emitFlash(if (invite) FlashTarget.QUIET_FIRST else FlashTarget.UPPER_CURRENT)
     }
 
-    /**
-     * Sliding window over DEFEND corrections only (easing never counts).
-     * @return false when a second large raise lands inside the window, i.e. a human insists.
-     */
-    private fun registerCorrection(): Boolean {
-        val now = SystemClock.elapsedRealtime()
-        correctionTimesMs.addLast(now)
-        while (correctionTimesMs.isNotEmpty() && now - correctionTimesMs.first() > FIGHT_WINDOW_MS) {
-            correctionTimesMs.removeFirst()
-        }
-        return correctionTimesMs.size <= MAX_CORRECTIONS_IN_WINDOW
-    }
-
     private fun notifyUi() {
         _uiRevision.value = _uiRevision.value + 1
     }
@@ -691,13 +608,6 @@ class FullRangeCoordinator(
     }
 
     companion object {
-        // 1.5.0 retune after the 2026-09-01 review reproduction: the old 3-in-5s breaker
-        // only rescued RAPID retries and let a patient person fight the defend branch
-        // forever (one slider drag every few seconds never trips 3-in-5s). Two large raises
-        // within ten seconds is the human signature; the second one wins outright.
-        private const val FIGHT_WINDOW_MS = 10_000L
-        private const val MAX_CORRECTIONS_IN_WINDOW = 1
-
         // Reattach timing. Settle: long enough for telephony/Bluetooth routing to finish
         // opening its output after a mode or device event, short enough that at most the
         // first second of a call can be missed. Retry: spacing for transient init failures.

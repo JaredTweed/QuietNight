@@ -170,6 +170,7 @@ class StreamVolumeController(context: Context) {
 
     private fun write(stream: Int, index: Int) {
         val previous = index(stream)
+        if (previous == index) return
         val write = SelfWrite(previous, index, SystemClock.elapsedRealtime())
         val pending = pendingWrites.getOrPut(stream) { mutableListOf() }
         pending.removeAll { write.atMs - it.atMs > SELF_CHANGE_WINDOW_MS }
