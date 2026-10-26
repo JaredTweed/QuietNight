@@ -3,9 +3,12 @@
 A private, open-source Android wind-down companion. Softer evening light, screen dimming, and media volume below Android’s usual minimum, together on one home screen.
 
 <p>
-  <img src="docs/quiet-night/home.png" width="300" alt="Quiet Night home with color and dimming sliders">
-  <img src="docs/quiet-night/schedule.png" width="300" alt="Custom overnight schedule with start and end handles">
-  <img src="docs/quiet-night/audio.png" width="300" alt="Read-only quiet-volume indicator with independent Screen and Audio controls">
+  <img src="docs/quiet-night/home.png" width="280" alt="Current Quiet Night home with independent Filter and Quiet steps buttons">
+  <img src="docs/quiet-night/sunset.png" width="280" alt="Automatic sunset scheduling using the Winnipeg time-zone reference city">
+</p>
+<p>
+  <img src="docs/quiet-night/schedule.png" width="280" alt="Custom overnight schedule with start and end handles">
+  <img src="docs/quiet-night/audio.png" width="280" alt="Quiet steps enabled with a read-only media-volume indicator at minus 15 decibels">
 </p>
 
 ## Your evening, in one place
