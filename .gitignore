@@ -5,6 +5,8 @@
 # ----- Credentials & Secrets (NEVER commit) -----
 *.jks
 *.keystore
+*.p12
+*.pfx
 .keystore-env
 KEYSTORE-CREDENTIALS.txt
 local.properties

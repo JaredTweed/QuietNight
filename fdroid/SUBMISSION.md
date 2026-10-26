@@ -33,7 +33,7 @@ The inherited source history starts on 2026-06-26, while this fork's development
 ### Policy
 
 * [ ] The app complies with the inclusion criteria, including Quality Control point 6 — see the history disclosure above; reviewer assessment is requested.
-* [x] The maintainer of this independent application, Jared Tweed, has explicitly authorized this submission and selected F-Droid signing. Original authorship is preserved in the GPL source and notices.
+* [x] The maintainer of this independent application, Jared Tweed, has explicitly authorized this submission and developer-signed reproducible builds. Original authorship is preserved in the GPL source and notices.
 * [x] The upstream repository includes `en-US` Fastlane summary, description, icon, four current screenshots, and a code-54 changelog. README screenshots were updated before this release was tagged.
 
 ### Docs
@@ -58,7 +58,7 @@ The inherited source history starts on 2026-06-26, while this fork's development
 * [x] The commit field contains the complete 40-character source hash.
 * [x] No external source repositories or srclibs are required. Runtime dependencies are FLOSS artifacts from Google Maven and Maven Central. IANA city data is public domain, pinned, and generated offline.
 * [x] R8/resource shrinking are enabled and encrypted AGP dependency information is disabled.
-* [ ] Developer-signature reproducible builds: not requested. The maintainer chose F-Droid signing for this new application because there is no established developer-signed release certificate to preserve. Debug builds have a separate `.debug` application ID. There are no `Binaries` or `AllowedAPKSigningKeys` fields.
+* [x] Developer-signed reproducible builds are enabled. `Binaries` selects the [signed 2.1.0 reference APK](https://github.com/JaredTweed/QuietNight/releases/download/quietnight-v2.1.0/QuietNight-2.1.0.apk), and `AllowedAPKSigningKeys` pins certificate SHA-256 `f90cc5f530bc227418eb1d0a016a790b052e6591a5c038a9979ab6e5544a4e2f`. The private key stays outside source and CI. Debug builds retain their separate `.debug` application ID.
 * [x] ABI splitting is not needed: the optimized APK is approximately 2.3 MB and the app contains no ABI-specific native code.
 
 ### Build and pipeline evidence
@@ -66,7 +66,7 @@ The inherited source history starts on 2026-06-26, while this fork's development
 * [x] F-Droid Server 2.4.5 metadata rewrite and lint passed locally.
 * [x] A clean checkout of the exact public source commit passed `fdroid build --stop --test --scan-binary --refresh-scanner --no-tarball dev.jaredtweed.quietnight:54`: **one build succeeded**, with source and APK scanners enabled and no bypasses.
 * [x] All 141 app regression tests passed. The [exact-source Android CI](https://github.com/JaredTweed/QuietNight/actions/runs/40346488464) and [tagged release build](https://github.com/JaredTweed/QuietNight/actions/runs/40346489138) passed. App lint has no errors; 77 existing warnings are disclosed in the verification notes.
-* [x] The submitted fdroiddata branch [pipeline](https://gitlab.com/JaredTweed/fdroiddata/-/pipelines/2990416651) passes all nine checks, including the build, source scan, schema, metadata lint, update checks, and APK check. F-Droid maintainer review remains pending.
+* [ ] The updated developer-signature [pipeline](https://gitlab.com/JaredTweed/fdroiddata/-/pipelines/2991402145) is being checked. The earlier source/build pipeline passed all nine checks; the new pipeline additionally verifies the signed reference. F-Droid maintainer review remains pending.
 * [ ] F-Droid maintainer review and CI-produced APK/device review remain pending.
 
 ### APK report notes
@@ -77,6 +77,4 @@ The job also emits runner/scanner warnings about its own `config.yml` mode and A
 
 Build verification: https://github.com/JaredTweed/QuietNight/blob/main/fdroid/VERIFICATION.md
 
-The clean unsigned APK SHA-256 is `142fb341f6233206c35af3c1683bed75090b4e94f1df8d89ddcf4bc118ed52c4`. This is local clean-build evidence, not a claim of official F-Droid signing, acceptance, or independent developer-signature reproduction.
-
-/label ~"New App"
+The clean unsigned APK SHA-256 is `142fb341f6233206c35af3c1683bed75090b4e94f1df8d89ddcf4bc118ed52c4`. The tagged GitHub CI artifact has exactly the same unsigned SHA-256. Copying the developer signature onto this independent clean F-Droid rebuild verifies using `apksigcopier` 1.1.1 and Android `apksigner`. The signed APK SHA-256 is `429cd7ade492d83472161fae044334488e4983a09dbc0fada2d0eaeba151f92d`. Inclusion approval remains pending.

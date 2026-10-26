@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Check the upstream F-Droid listing without requiring Fastlane or a build SDK."""
 from pathlib import Path
+import hashlib
 import re
+import ssl
 import struct
 import xml.etree.ElementTree as ET
 
@@ -44,6 +46,14 @@ def main():
     }), 'Privacy claims must be reviewed if network, microphone, billing, or advertising permissions are added'
     for path in [ROOT / 'README.md', *ROOT.glob('android/app/src/main/**/*.kt'), *ROOT.glob('android/app/src/main/**/*.xml')]:
         assert 'JaredTweed/granular-volume' not in path.read_text(), f'Old fork URL in {path}'
+    recipe = (ROOT / 'fdroid/metadata/dev.jaredtweed.quietnight.yml').read_text()
+    certificate = (ROOT / 'fdroid/release-signing-certificate.pem').read_text()
+    fingerprint = hashlib.sha256(ssl.PEM_cert_to_DER_cert(certificate)).hexdigest()
+    assert re.search(r'^AllowedAPKSigningKeys:(?: ' + fingerprint + r'|\n  - ' + fingerprint + r')$',
+                     recipe, re.MULTILINE), 'F-Droid must pin the public release certificate'
+    assert ('Binaries: https://github.com/JaredTweed/QuietNight/releases/download/'
+            'quietnight-v%v/QuietNight-%v.apk') in recipe, 'Signed reference APK URL is missing'
+    assert re.search(r'^AutoUpdateMode: Version$', recipe, re.MULTILINE), 'Tag updates require plain Version mode'
     print(f'F-Droid listing OK: {app_name}, version code {code}, {len(screenshots)} screenshots')
 
 

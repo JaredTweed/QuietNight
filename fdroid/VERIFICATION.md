@@ -4,7 +4,7 @@
 - Version: 2.1.0 / code 54.
 - Immutable source tag: `quietnight-v2.1.0`.
 - Source commit: `f98bc0cf3c0ad9d2112c42ce59e14a6c96845d35`.
-- Signing route: F-Droid signing, explicitly selected by the maintainer; no developer certificate or reference binary is requested.
+- Signing route: developer-signed reproducible builds, using the signed GitHub reference APK and the pinned public certificate.
 - License: GPL-3.0-only, with upstream attribution and public-domain IANA data notices retained.
 
 ## Exact-source build
@@ -19,7 +19,7 @@ Result: **one build succeeded**. Source scanning and APK scanning were enabled, 
 
 Unsigned APK SHA-256: `142fb341f6233206c35af3c1683bed75090b4e94f1df8d89ddcf4bc118ed52c4`.
 
-This is local clean-build evidence, not a claim that F-Droid has approved, signed, or published the application, or that an independently signed release has been reproduced.
+The tagged GitHub CI unsigned APK has this same SHA-256. Copying the developer signature onto the independent F-Droid rebuild verifies with `apksigcopier` 1.1.1 and Android `apksigner`. This does not constitute F-Droid inclusion approval.
 
 ## Additional checks
 
@@ -32,10 +32,18 @@ This is local clean-build evidence, not a claim that F-Droid has approved, signe
 
 ## Submission review
 
-The application was submitted in [fdroiddata merge request #54381](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/54381) on 2026-10-26. Publication and official signing remain pending.
+The application was submitted in [fdroiddata merge request #54381](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/54381) on 2026-10-26. Publication remains pending; the developer-signed reference APK is published on GitHub.
 
 The public fdroiddata branch is based on upstream master and is not protected. Only `metadata/dev.jaredtweed.quietnight.yml` was added. Its [pipeline](https://gitlab.com/JaredTweed/fdroiddata/-/pipelines/2990416651) passed all nine jobs, including the build, source scanning, schema validation, formatting, metadata lint, update checks, and final APK check. This is separate from the upstream app's GitHub CI and does not constitute maintainer approval.
 
 The fork's development began on 2026-10-23; the inherited source history began on 2026-06-26. The maintainer uses the app, but no established public user base, three-month fork history, policy exception, or inclusion approval is claimed. F-Droid reviewers must assess the Quality Control point 6 criterion and the final submission.
 
 The APK report flags the expected overlay/location permissions and accessibility intent as minor findings. These are disclosed optional features, explained in the merge request. Runner config-file mode and Androguard API-database fallback warnings originate in CI tooling; no app source or scanner bypass was used to suppress them.
+
+## Developer-signed reference
+
+The [2.1.0 production APK](https://github.com/JaredTweed/QuietNight/releases/download/quietnight-v2.1.0/QuietNight-2.1.0.apk) uses certificate SHA-256 `f90cc5f530bc227418eb1d0a016a790b052e6591a5c038a9979ab6e5544a4e2f`. Its signed APK SHA-256 is `429cd7ade492d83472161fae044334488e4983a09dbc0fada2d0eaeba151f92d`; the public download matches the verified local artifact. The source tag and commit are unchanged.
+
+The signer preserves existing ZIP alignment for build-tools 35 compatibility. Android signature verification and signature-copy reproduction passed. The helper also correctly refused mismatched rebuilds, a debug package, and overwriting an existing release. The encrypted key stays outside the repository and CI; the public certificate and reproducibility-aware signer are committed. See [SIGNING.md](SIGNING.md).
+
+The earlier all-green pipeline above predates the developer-signed reference. The updated F-Droid pipeline must independently verify this reference before its result is recorded here.

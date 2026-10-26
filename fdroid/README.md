@@ -1,14 +1,14 @@
 # F-Droid submission preparation
 
-Quiet Night is a GPL-3.0-only fork maintained by Jared Tweed, with application ID `dev.jaredtweed.quietnight`. F-Droid signing was selected by the maintainer. This directory documents the F-Droid build recipe and submission process. Quiet Night 2.1.0 (54) was submitted in [fdroiddata merge request #54381](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/54381). Publication depends on F-Droid review and its own build/signing pipeline.
+Quiet Night is a GPL-3.0-only fork maintained by Jared Tweed, with application ID `dev.jaredtweed.quietnight`. Developer-signed reproducible builds were selected in response to the F-Droid review. This directory documents the F-Droid build recipe and submission process. Quiet Night 2.1.0 (54) was submitted in [fdroiddata merge request #54381](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/54381). Publication depends on F-Droid review and its own build/signing pipeline.
 
 ## Build and listing
 
-The app builds from `android/app` with the `fdroid` Gradle flavor, SDK 36, SDK build-tools 35.0.0, OpenJDK 17, AGP 8.10.1, Kotlin 2.2.20, and checksum-verified Gradle 8.11.1. Runtime dependencies come from Google Maven and Maven Central. Debug builds have a separate `.debug` application ID. Release builds are optimized with R8 and resource shrinking and have no developer signing configuration.
+The app builds from `android/app` with the `fdroid` Gradle flavor, SDK 36, SDK build-tools 35.0.0, OpenJDK 17, AGP 8.10.1, Kotlin 2.2.20, and checksum-verified Gradle 8.11.1. Runtime dependencies come from Google Maven and Maven Central. Debug builds have a separate `.debug` application ID. Release builds are optimized with R8 and resource shrinking and remain unsigned in Gradle/CI. The verified APK is signed locally using the private release key; see [SIGNING.md](SIGNING.md).
 
 English Fastlane metadata, current screenshots, the app icon, and the version-code 54 changelog live in `fastlane/metadata/android/en-US`. Inaccurate upstream listings and translations were removed; the interface is currently English. The current app keeps its unique package ID, distinct icon/name, and upstream authorship notices.
 
-Use the [current submission recipe](https://github.com/JaredTweed/QuietNight/blob/HEAD/fdroid/metadata/dev.jaredtweed.quietnight.yml) in a public fdroiddata fork. Only the app's YAML belongs in fdroiddata; the store listing is pulled from this repository. Copy the recipe unchanged after checking its pinned full source SHA. No `Binaries`, `binary`, or `AllowedAPKSigningKeys` fields are needed for the selected F-Droid signing route.
+Use the [current submission recipe](https://github.com/JaredTweed/QuietNight/blob/HEAD/fdroid/metadata/dev.jaredtweed.quietnight.yml) in a public fdroiddata fork. Only the app's YAML belongs in fdroiddata; the store listing is pulled from this repository. Copy the recipe unchanged after checking its pinned full source SHA. The `Binaries` URL selects the signed GitHub release APK, and `AllowedAPKSigningKeys` pins the public developer certificate. F-Droid must reproduce and verify the signed APK before publication.
 
 ```sh
 python3 tools/check_fdroid_metadata.py
@@ -36,6 +36,6 @@ The [current inclusion policy](https://f-droid.org/docs/Inclusion_Policy/) requi
 
 The policy also normally requires three months of active development, with exceptions for established users, existing F-Droid maintainers, and event apps. Upstream history begins on 2026-06-26; Quiet Night's fork-specific development began on 2026-10-23. Whether that history or a usage exception is sufficient is the reviewers' decision. Do not claim an exception or manufacture user evidence. If reviewers require more history, continue maintaining public releases and submit later.
 
-A real fdroiddata merge request and its official build/review pipeline are still required. Keep its source branch public and unprotected. Maintainers may request installation tests of their CI-produced APK. Do not mark a checkbox as passed until it has actually been verified. F-Droid signing is separate from a claim of cross-environment reproducibility with a developer-signed APK.
+A real fdroiddata merge request and its official build/review pipeline are still required. Keep its source branch public and unprotected. Maintainers may request installation tests of their CI-produced APK. Do not mark a checkbox as passed until it has actually been verified. The tagged GitHub CI unsigned APK and independent clean F-Droid rebuild are byte-identical, and signature copying verifies; the F-Droid submission pipeline must also pass its reference-binary comparison.
 
 See the [submission guide](https://f-droid.org/docs/Submitting_to_F-Droid_Quick_Start_Guide/) and [metadata reference](https://f-droid.org/docs/Build_Metadata_Reference/) for the current process.
