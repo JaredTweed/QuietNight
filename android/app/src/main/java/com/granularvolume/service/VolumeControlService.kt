@@ -22,11 +22,12 @@ class VolumeControlService : Service() {
         const val EXTRA_BLUETOOTH_FLOOR = "bluetooth_floor"
     }
     private val handler = Handler(Looper.getMainLooper())
+    private val schedule = SleepPlanCache()
     private var audio: AudioController? = null
-    private var volume: StreamVolumeController? = null
     private var coordinator: FullRangeCoordinator? = null
     private lateinit var overlay: NightOverlay
     private lateinit var am: AudioManager
+    private var notificationFeatures: Pair<Boolean, Boolean>? = null
     private val applyLater = Runnable { applyConfig() }
     private val prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
         handler.removeCallbacks(applyLater); handler.postDelayed(applyLater, 80)
@@ -58,7 +59,9 @@ class VolumeControlService : Service() {
         am = getSystemService(AUDIO_SERVICE) as AudioManager
         (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(
             NotificationChannel("quiet_night", "Wind-down controls", NotificationManager.IMPORTANCE_LOW))
-        val n = notification()
+        val config = SleepSettings.read(this)
+        val n = notification(config)
+        notificationFeatures = config.screen to config.audio
         if (Build.VERSION.SDK_INT >= 34) startForeground(802, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         else startForeground(802, n)
         SleepSettings.prefs(this).registerOnSharedPreferenceChangeListener(prefsListener)
@@ -84,7 +87,7 @@ class VolumeControlService : Service() {
     }
     private fun applyConfig(): Boolean {
         val config = SleepSettings.read(this)
-        val plan = SleepSchedule.plan(config)
+        val plan = schedule.plan(config)
         val screenOn = SleepScheduler.screenRunnable(this, config) && plan.active
         val audioOn = SleepScheduler.audioRunnable(this, config)
         if (!screenOn && !audioOn) { stopSelf(); return false }
@@ -93,7 +96,7 @@ class VolumeControlService : Service() {
             val v = StreamVolumeController(applicationContext)
             val c = FullRangeCoordinator(applicationContext, a, v)
             c.onQuietUnavailable = { android.widget.Toast.makeText(this, "Quiet steps cannot change cellular call audio", android.widget.Toast.LENGTH_SHORT).show() }
-            audio = a; volume = v; coordinator = c
+            audio = a; coordinator = c
             a.onEffectState = { available, preferred ->
                 ControlLive.effect = if (!available) ControlLive.Effect.NONE else if (preferred)
                     ControlLive.Effect.PREFERRED else ControlLive.Effect.FALLBACK
@@ -108,11 +111,16 @@ class VolumeControlService : Service() {
         publishAudio()
         val display = config.copy(screen = screenOn)
         if (ScreenOverlayService.update(display)) overlay.close() else overlay.update(display)
-        (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(802, notification(config.copy(screen = screenOn, audio = audioOn)))
+        val features = screenOn to audioOn
+        if (notificationFeatures != features) {
+            (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(802,
+                notification(config.copy(screen = screenOn, audio = audioOn)))
+            notificationFeatures = features
+        }
         return true
     }
     private fun publishAudio() { ControlLive.audioState = coordinator?.uiState() }
-    private fun releaseAudio() { ControlLive.audioState = null; coordinator?.dispose(); coordinator = null; audio?.release(); audio = null; volume = null; ControlLive.effect = ControlLive.Effect.UNKNOWN }
+    private fun releaseAudio() { ControlLive.audioState = null; coordinator?.dispose(); coordinator = null; audio?.release(); audio = null; ControlLive.effect = ControlLive.Effect.UNKNOWN }
     private fun notification(config: SleepConfig = SleepSettings.read(this)): Notification {
         val open = PendingIntent.getActivity(this, 1, Intent(this, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val stop = PendingIntent.getService(this, 2, Intent(this, VolumeControlService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)

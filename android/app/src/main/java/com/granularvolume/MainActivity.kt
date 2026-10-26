@@ -40,6 +40,7 @@ import java.util.Locale
 /** The fork's permanent home: light, schedule, and sound in one place. */
 class MainActivity : AppCompatActivity() {
     private val handler = Handler(Looper.getMainLooper())
+    private val schedule = SleepPlanCache()
     private lateinit var root: LinearLayout
     private lateinit var scroll: ScrollView
     private lateinit var actions: LinearLayout
@@ -50,6 +51,8 @@ class MainActivity : AppCompatActivity() {
     private var quietIndicator: QuietLevelIndicator? = null
     private var quietHint: TextView? = null
     private var locationRequest: CancellationSignal? = null
+    private var locationTimeout: Runnable? = null
+    private val streamVolume by lazy { StreamVolumeController(applicationContext) }
     private val reconcile = Runnable { SleepScheduler.reconcile(this); refreshStatus() }
     private val refresh = object : Runnable {
         override fun run() { refreshStatus(); handler.postDelayed(this, 250) }
@@ -111,7 +114,7 @@ class MainActivity : AppCompatActivity() {
         handler.removeCallbacks(refresh); super.onPause()
     }
     override fun onDestroy() {
-        locationRequest?.cancel(); handler.removeCallbacksAndMessages(null); super.onDestroy()
+        cancelLocationRequest(); handler.removeCallbacksAndMessages(null); super.onDestroy()
     }
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
     private fun text(value: String, size: Float = 14f, color: Int = NightColors.text, bold: Boolean = false) = TextView(this).apply {
@@ -183,7 +186,7 @@ class MainActivity : AppCompatActivity() {
         quietIndicator = null; quietHint = null
         screenAction = null; audioAction = null
         val config = SleepSettings.read(this)
-        val plan = SleepSchedule.plan(config)
+        val plan = schedule.plan(config)
         renderedAudioReady = ControlLive.audioState != null
         renderedSystemOverlay = ScreenOverlayService.isConnected()
 
@@ -325,7 +328,7 @@ class MainActivity : AppCompatActivity() {
             }.show()
     }
     private fun refreshStatus() {
-        val config = SleepSettings.read(this); val plan = SleepSchedule.plan(config)
+        val config = SleepSettings.read(this); val plan = schedule.plan(config)
         if (renderedSystemOverlay != ScreenOverlayService.isConnected() ||
             (config.audio && renderedAudioReady != (ControlLive.audioState != null))) { render(); return }
         styleAction(screenAction, "Screen", config.screen,
@@ -338,7 +341,7 @@ class MainActivity : AppCompatActivity() {
             !config.audio -> ""
             !ControlLive.running -> "Starting…"
             ControlLive.effect == ControlLive.Effect.NONE -> "Quiet steps unavailable on this device"
-            StreamVolumeController(this).inCellularCall() -> "Unavailable during cellular calls"
+            streamVolume.inCellularCall() -> "Unavailable during cellular calls"
             ControlLive.effect == ControlLive.Effect.FALLBACK -> "Compatibility mode · use volume keys"
             else -> "Use volume keys"
         }
@@ -402,7 +405,7 @@ class MainActivity : AppCompatActivity() {
         startService(Intent(this, VolumeControlService::class.java).setAction(action).apply(extras))
     }
     private fun bluetoothCalibration(parent: LinearLayout, active: Boolean) {
-        val volume = StreamVolumeController(this)
+        val volume = streamVolume
         if (!active || volume.inCall()) return
         val name = volume.activeBluetoothName() ?: return
         val am = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
@@ -433,7 +436,15 @@ class MainActivity : AppCompatActivity() {
         if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) locate()
         else locationPermission.launch(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION))
     }
+    private fun cancelLocationRequest() {
+        locationTimeout?.let(handler::removeCallbacks)
+        locationTimeout = null
+        val pending = locationRequest
+        locationRequest = null
+        pending?.cancel()
+    }
     private fun locate() {
+        cancelLocationRequest()
         val manager = getSystemService(LOCATION_SERVICE) as LocationManager
         try {
             val providers = manager.getProviders(true).filter {
@@ -445,16 +456,26 @@ class MainActivity : AppCompatActivity() {
             }
             val provider = providers.firstOrNull { it == LocationManager.NETWORK_PROVIDER } ?: providers.firstOrNull { it == LocationManager.GPS_PROVIDER }
             if (provider == null) { toast("Turn on location, or enter coordinates manually"); return }
-            locationRequest?.cancel(); val cancellation = CancellationSignal(); locationRequest = cancellation
+            val cancellation = CancellationSignal(); locationRequest = cancellation
             toast("Finding your location…")
             LocationManagerCompat.getCurrentLocation(manager, provider, cancellation, ContextCompat.getMainExecutor(this)) { location ->
+                // A cancelled/replaced lookup must not overwrite a later manual location.
+                if (locationRequest !== cancellation || isDestroyed) return@getCurrentLocation
+                cancelLocationRequest()
                 if (location == null) toast("Location unavailable; you can enter it manually")
-                else if (!isDestroyed) persist(true) { it.copy(latitude = location.latitude, longitude = location.longitude) }
+                else persist(true) { it.copy(latitude = location.latitude, longitude = location.longitude) }
             }
-            handler.postDelayed({ cancellation.cancel() }, 30_000)
-        } catch (_: SecurityException) { toast("Location access was not granted") }
+            // Some providers answer synchronously from cache.
+            if (locationRequest === cancellation) {
+                locationTimeout = Runnable { cancelLocationRequest() }.also { handler.postDelayed(it, 30_000) }
+            }
+        } catch (_: SecurityException) {
+            cancelLocationRequest()
+            toast("Location access was not granted")
+        }
     }
     private fun locationDialog() {
+        cancelLocationRequest()
         val cfg = SleepSettings.read(this)
         val form = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), 0, dp(24), 0) }
         fun input(hintText: String, value: Double?) = EditText(this).apply {

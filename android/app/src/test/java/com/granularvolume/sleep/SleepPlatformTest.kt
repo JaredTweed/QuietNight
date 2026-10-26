@@ -213,4 +213,28 @@ class SleepPlatformTest {
         assertEquals(85, config.dim); assertEquals(0, config.warmth)
     }
 
+    @Test fun unchangedFiltersAvoidWindowUpdatesAndAudioChangesDoNotRedrawTheFilter() {
+        val overlay = NightOverlay(context)
+        val config = SleepConfig(screen = true, dim = 50, warmth = 50)
+        assertTrue(overlay.update(config))
+        repeat(10) { assertTrue(overlay.update(config.copy(audio = it % 2 == 0))) }
+        verify(windows, times(1)).addView(any(android.view.View::class.java), any(WindowManager.LayoutParams::class.java))
+        verify(windows, never()).updateViewLayout(any(android.view.View::class.java), any(WindowManager.LayoutParams::class.java))
+        assertTrue(overlay.update(config.copy(dim = 51)))
+        verify(windows, times(1)).updateViewLayout(any(android.view.View::class.java), any(WindowManager.LayoutParams::class.java))
+        overlay.close(); overlay.close()
+        verify(windows, times(1)).removeView(any(android.view.View::class.java))
+    }
+
+    @Test fun rejectedOverlayDoesNotClaimOwnershipAndCanBeRetried() {
+        val overlay = NightOverlay(context, systemUi = true)
+        val config = SleepConfig(screen = true)
+        doThrow(SecurityException("Access revoked")).`when`(windows)
+            .addView(any(android.view.View::class.java), any(WindowManager.LayoutParams::class.java))
+        assertFalse(overlay.update(config))
+        doNothing().`when`(windows).addView(any(android.view.View::class.java), any(WindowManager.LayoutParams::class.java))
+        assertTrue(overlay.update(config))
+        overlay.close()
+    }
+
 }

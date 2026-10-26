@@ -9,12 +9,12 @@ interface AudioEffectStrategy {
     fun initialize(): Boolean
 
     /**
-     * Sets the attenuation level.
+     * Sets the attenuation level. Returns false if the native effect rejected the write.
      * @param dB value in decibels, range [ATTENUATION_MIN, 0.0]
      *            0.0 = no attenuation (pass-through)
      *            -30.0 = near-silent
      */
-    fun setAttenuation(dB: Float)
+    fun setAttenuation(dB: Float): Boolean
 
     /** Release all audio resources. Must be called on Service destroy. */
     fun release()

@@ -1,5 +1,7 @@
 package com.granularvolume.audio
 
+import android.media.AudioAttributes
+import android.os.Build
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.util.Log
@@ -101,7 +103,7 @@ class VolumeCurve private constructor(
          *         treat null as "no ladder, use raw hardware indices".
          */
         fun read(am: AudioManager, streamType: Int, floorIndex: Int = 1): VolumeCurve? {
-            val deviceType = currentOutputDeviceType(am)
+            val deviceType = currentOutputDeviceType(am) ?: return null
             val max = am.getStreamMaxVolume(streamType)
             val min = am.getStreamMinVolume(streamType)
             if (max < 1) return null
@@ -114,6 +116,12 @@ class VolumeCurve private constructor(
                 return null
             }
 
+            val minAudible = maxOf(1, min, floorIndex)
+            if (minAudible > max) return null
+            // Muted indices may be -infinity. Audible indices and the reference must be finite;
+            // replacing NaN with a number would manufacture a plausible but false curve.
+            if (raw.any { it.isNaN() || it == Float.POSITIVE_INFINITY } ||
+                (minAudible..max).any { !raw[it].isFinite() }) return null
             // Relative to max; index 0 is often -inf (mute) — clamp it below the floor.
             val top = raw[max]
             val rel = FloatArray(max + 1) { i ->
@@ -128,8 +136,6 @@ class VolumeCurve private constructor(
                     return null
                 }
             }
-            val minAudible = maxOf(1, min, floorIndex)
-            if (minAudible > max) return null
             val range = -rel[minAudible]
             if (range < MIN_PLAUSIBLE_RANGE_DB || range > MAX_PLAUSIBLE_RANGE_DB) {
                 Log.w(TAG, "Implausible curve range ${range}dB — rejecting")
@@ -156,17 +162,34 @@ class VolumeCurve private constructor(
             AudioDeviceInfo.TYPE_BLE_BROADCAST  // API 33
         )
 
-        /** True when any wireless output is connected and likely carrying media. */
+        /** True when a media route is wireless; older Android falls back to connected outputs. */
         fun isWirelessRoute(am: AudioManager): Boolean =
-            am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { it.type in WIRELESS_TYPES }
+            outputDevices(am).any { it.type in WIRELESS_TYPES }
+
+        private val mediaAttributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build()
+
+        private fun outputDevices(am: AudioManager): List<AudioDeviceInfo> {
+            if (Build.VERSION.SDK_INT >= 33) {
+                try {
+                    val routed = am.getAudioDevicesForAttributes(mediaAttributes)
+                    if (routed.isNotEmpty()) return routed
+                } catch (failure: RuntimeException) {
+                    Log.w(TAG, "Media route query unavailable", failure)
+                }
+            }
+            // Older Android exposes connected outputs only. Preserve its conservative fallback.
+            return am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).toList()
+        }
 
         /**
-         * Best guess at the active output device type, preferring the route audio actually
-         * takes when several are connected: wireless > wired > USB > built-in speaker.
-         * The curve differs per route (spec: re-read on every route change).
+         * Use the prospective media route on API 33+, refusing ambiguous simultaneous routes.
+         * Older Android can only rank connected devices: wireless > wired > USB > speaker.
          */
-        private fun currentOutputDeviceType(am: AudioManager): Int {
-            val devices = am.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+        private fun currentOutputDeviceType(am: AudioManager): Int? {
+            val devices = outputDevices(am)
+            if (Build.VERSION.SDK_INT >= 33 && devices.size == 1) return devices.single().type
+            // Simultaneous routes may have different curves: raw indices are safer than guessing.
+            if (Build.VERSION.SDK_INT >= 33 && devices.size > 1) return null
             val priority = listOf(
                 AudioDeviceInfo.TYPE_BLE_HEADSET,
                 AudioDeviceInfo.TYPE_HEARING_AID,

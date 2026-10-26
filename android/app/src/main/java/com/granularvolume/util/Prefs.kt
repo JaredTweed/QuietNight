@@ -11,9 +11,15 @@ object Prefs {
     const val ATTENUATION_MIN = -30f
     const val ATTENUATION_MAX = 0f
     private fun prefs(context: Context) = context.getSharedPreferences("gv_prefs", Context.MODE_PRIVATE)
-    fun getAttenuation(context: Context) = prefs(context).getFloat("attenuation_db", ATTENUATION_DEFAULT)
+    fun getAttenuation(context: Context) = sanitizeAttenuation(
+        prefs(context).getFloat("attenuation_db", ATTENUATION_DEFAULT))
+    internal fun sanitizeAttenuation(dB: Float): Float = if (dB.isFinite())
+        dB.coerceIn(ATTENUATION_MIN, ATTENUATION_MAX) else ATTENUATION_DEFAULT
     fun setAttenuation(context: Context, dB: Float) {
-        prefs(context).edit { putFloat("attenuation_db", dB.coerceIn(ATTENUATION_MIN, ATTENUATION_MAX)) }
+        val p = prefs(context)
+        val safe = sanitizeAttenuation(dB)
+        if (p.getFloat("attenuation_db", Float.NaN) != safe)
+            p.edit { putFloat("attenuation_db", safe) }
     }
     fun getBluetoothFloor(context: Context, deviceName: String) =
         prefs(context).getInt(KEY_BLUETOOTH_FLOOR_PREFIX + deviceName, 1)
@@ -33,6 +39,8 @@ object Prefs {
     fun hasLevelZone(context: Context) = prefs(context).contains("level_in_quiet_zone")
     fun isLevelInQuietZone(context: Context) = prefs(context).getBoolean("level_in_quiet_zone", false)
     fun setLevelInQuietZone(context: Context, quiet: Boolean) {
-        prefs(context).edit { putBoolean("level_in_quiet_zone", quiet) }
+        val p = prefs(context)
+        if (!p.contains("level_in_quiet_zone") || p.getBoolean("level_in_quiet_zone", false) != quiet)
+            p.edit { putBoolean("level_in_quiet_zone", quiet) }
     }
 }

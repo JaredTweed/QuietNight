@@ -14,14 +14,18 @@ import android.view.WindowManager
 class NightOverlay(private val context: Context, private val systemUi: Boolean = false) {
     private val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private var filter: View? = null
+    private data class Appearance(val dim: Int, val warmth: Int)
+    private var applied: Appearance? = null
     private val canOverlay: Boolean get() = systemUi || Settings.canDrawOverlays(context)
 
-    fun update(config: SleepConfig) {
+    fun update(config: SleepConfig): Boolean {
         if (!canOverlay) {
-            removeFilter(); return
+            removeFilter(); return false
         }
         val wantsFilter = config.screen && (config.dim > 0 || config.warmth > 0)
-        if (!wantsFilter) removeFilter() else {
+        if (!wantsFilter) { removeFilter(); return true } else {
+            val appearance = Appearance(config.dim, config.warmth)
+            if (applied == appearance) return true
             val view = filter ?: View(context).also { filter = it }
             view.setBackgroundColor(if (systemUi) filterColor(config.dim, config.warmth)
                 else if (config.warmth == 0) Color.TRANSPARENT else Color.rgb(255, 67, 15))
@@ -42,19 +46,27 @@ class NightOverlay(private val context: Context, private val systemUi: Boolean =
                 title = "Quiet Night screen filter"
             }
             try {
-                if (view.parent == null) wm.addView(view, lp) else wm.updateViewLayout(view, lp)
+                if (applied == null) wm.addView(view, lp) else wm.updateViewLayout(view, lp)
+                applied = appearance
+                return true
             } catch (_: SecurityException) {
                 // Access can be revoked between the permission check and the window operation.
                 removeFilter()
+                return false
             } catch (_: WindowManager.BadTokenException) {
                 // A disconnect invalidates the accessibility window token.
                 removeFilter()
+                return false
+            } catch (_: IllegalArgumentException) {
+                // WindowManager may have removed the view during a display/service transition.
+                removeFilter()
+                return false
             }
         }
     }
 
     private fun removeFilter() {
-        filter?.let { runCatching { wm.removeView(it) } }; filter = null
+        filter?.let { runCatching { wm.removeView(it) } }; filter = null; applied = null
     }
     fun close() { removeFilter() }
 
