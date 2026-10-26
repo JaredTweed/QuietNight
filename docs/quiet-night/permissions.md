@@ -1,6 +1,6 @@
 # Permission audit — 2026-10-26
 
-The full-screen accessibility overlay is preserved, including notifications and Quick Settings. No screen-reading, accessibility event, gesture, key-filtering, or screenshot capability was added.
+The full-screen accessibility overlay is preserved, including notifications and Quick Settings. No screen-reading, accessibility content event, gesture, or screenshot capability is requested. The later hold-to-mute feature adds hardware-key handling only while Quiet steps is on; other keys are ignored without character inspection or recording.
 
 ## Required access by feature
 
@@ -10,9 +10,9 @@ The full-screen accessibility overlay is preserved, including notifications and 
 | Scheduled full-screen filtering on Android 14+ or Android 9–11 | No additional grant. A timer belongs to the already-bound accessibility service. |
 | Scheduling on Android 12/13, or app-only scheduling on Android 12+ | Optional Alarms & reminders fallback, preserving the earlier operating mode. |
 | App-only filtering without the accessibility service | Optional Display over other apps. |
-| Quiet steps | Automatic Modify audio settings permission. |
+| Quiet steps | Automatic Modify audio settings permission. The two-second global mute shortcut additionally uses the existing accessibility service’s key-event capability while Quiet steps is on. |
 | Notification with Stop | Optional notification grant on Android 13+. |
-| Sunset calculation | No location permission for manually entered/saved coordinates. Foreground location access is requested only for Use current location; precise access preserves GPS-only operation. |
+| Sunset calculation | No device-location permission for the default time-zone-city estimate or manually entered/saved coordinates. Foreground location access is requested only for Use current location; precise access preserves GPS-only operation. |
 | Restore pre-overlay brightness | Optional Modify system settings only when an unfinished legacy brightness record exists. This permission does not implement the current dimmer. |
 | Restart after boot; maintain active controls | Android's normal boot and foreground-service permissions. Removing them would remove those capabilities. |
 

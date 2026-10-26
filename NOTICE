@@ -12,3 +12,10 @@ license are available inside the app under More options > Licenses.
 The only bundled executable build binary is the official Gradle wrapper JAR
 (Apache-2.0). Gradle distributions are downloaded from services.gradle.org with
 SHA-256 verification. Historical marketing assets are not bundled in the APK.
+
+Offline representative-city coordinates and time-zone aliases are derived from
+IANA tzdb 2026e (zone.tab, zone1970.tab, and backward), which are public-domain
+files. Pinned source, the upstream license, archive checksum, and provenance are
+in tools/tzdb/2026e. tools/generate_time_zone_cities.py regenerates the Kotlin
+lookup from these local text sources; no runtime or build-time lookup is sent
+across the network.

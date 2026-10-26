@@ -2,10 +2,12 @@ Quiet Night combines a warmer screen, extra dimming, and media volume below Andr
 
 Screen and audio controls are independent. Choose a red-orange tint and dim level, then keep screen controls on manually or schedule them for custom hours or sunset to sunrise. Location is optional and used only for local sun-time calculations; coordinates can also be entered manually.
 
-Full-screen dimming, including notifications and Quick Settings, uses an optional accessibility service. It draws a touch-through filter and requests no screen-reading, gesture-control, or key-filtering capabilities. Display-over-other-apps access provides an app-only alternative. The filter does not change system brightness or adaptive brightness.
+Full-screen dimming, including notifications and Quick Settings, uses an optional accessibility service. It draws a touch-through filter. While Quiet steps is on, it also handles a two-second volume-down hold to mute media outside the app. Other keys are ignored, no keys are recorded, and normal key behavior continues. Key handling switches off with Quiet steps. It requests no screen-reading or gesture-injection capabilities. Display-over-other-apps access provides an app-only alternative. The filter does not change system brightness or adaptive brightness.
 
 With Audio enabled, keep pressing volume-down to move through six quiet steps below the device's audible minimum, down to -30 dB, then media mute. Volume-up brings sound back. Bluetooth headphone calibration can correct a silent first volume step on Android 13 or newer.
 
 No ads, accounts, tracking, analytics, or internet permission. Settings stay on the device. Audio effects vary by device and player, and cellular-call audio is not attenuated. Some protected screens and always-on displays can hide filters.
 
 Quiet Night is an independent GPL-3.0 fork of Granular Volume / Quiet Dial by Rzuss. It adds scheduled screen tint and dimming, an optional full-screen accessibility filter, independent screen/audio controls, and a new interface. It is not an official upstream release.
+
+Sunset scheduling defaults to an offline estimate for your time-zone city, with no device-location access needed. Optionally share your current location once or enter coordinates for more accurate local timing. Location stays on the device; there is no background tracking.

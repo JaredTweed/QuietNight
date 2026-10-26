@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Estimate sunset/sunrise from the phone’s time-zone city automatically, with optional one-time location or saved-coordinate accuracy upgrades; all calculations stay offline.
+- Hold volume-down for two seconds to mute media while Quiet steps is on, including outside the app. This uses the existing accessibility service’s disclosed hardware-key capability; other keys are ignored and key handling is disabled with Quiet steps.
 - Full-screen filtering on Android 14+ can schedule without Alarms & reminders access; older-Android and app-only scheduling keep the existing fallback. Recheck the schedule on wake without adding polling or battery-exemption access.
 - Preserve accumulated quiet-volume steps when Android batches background volume notifications.
 - Carry surplus volume-up steps into normal hardware volume, and ignore late notifications already covered by a correction.

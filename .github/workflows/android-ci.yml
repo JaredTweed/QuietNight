@@ -23,6 +23,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Check F-Droid listing
         run: python3 tools/check_fdroid_metadata.py
+      - name: Verify offline time-zone city data
+        run: python3 tools/generate_time_zone_cities.py --check
       - name: Build and run regression tests
         working-directory: android
         run: ./gradlew :app:assembleFdroidDebug :app:testFdroidDebugUnitTest :app:lintFdroidDebug :app:assembleFdroidRelease --no-daemon --stacktrace

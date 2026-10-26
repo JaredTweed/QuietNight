@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.granularvolume"
+    namespace = "dev.jaredtweed.quietnight"
     compileSdk = 36
     dependenciesInfo { includeInApk = false; includeInBundle = false }
     defaultConfig {

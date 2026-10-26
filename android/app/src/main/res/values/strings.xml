@@ -9,5 +9,5 @@
     <string name="gv_licenses_own_body">Quiet Night is free software under the GNU General Public License version 3.0. It includes work from Granular Volume by Rzuss; see the source repository for attribution notices. The complete source is at github.com/JaredTweed/QuietNight.</string>
     <string name="gv_licenses_apache">Apache License 2.0, full text</string>
     <string name="gv_screen_overlay_label">Quiet Night screen dimming</string>
-    <string name="gv_screen_overlay_description">Draws a touch-through tint and dimming filter over notifications and Quick Settings. Does not read screen content, observe actions, control gestures, or change system brightness. Turn Screen off in Quiet Night to remove the filter.</string>
+    <string name="gv_screen_overlay_description">Draws a touch-through filter over notifications and Quick Settings. While Quiet steps is on, detects a two-second volume-down hold to mute media; other keys are ignored and no keys are recorded. Does not read screen content, control gestures, or change system brightness. Turn Filter off to remove the filter.</string>
 </resources>

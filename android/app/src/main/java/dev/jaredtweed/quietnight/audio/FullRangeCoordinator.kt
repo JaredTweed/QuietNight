@@ -1,0 +1,619 @@
+package dev.jaredtweed.quietnight.audio
+
+import android.content.Context
+import android.media.AudioManager
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
+import dev.jaredtweed.quietnight.util.Prefs
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+/**
+ * The brain of full-range mode: one logical scale built from two mechanisms.
+ *
+ *  UPPER ZONE (above the device-minimum line)
+ *    Always the MEDIA stream (1.4.2 — see [StreamVolumeController] KDoc for the AOSP proof
+ *    that the physical keys drive media even when nothing plays). Uniform 5 dB rungs from
+ *    [VolumeCurve] — hardware index does the coarse work, the DynamicsProcessing gain fills
+ *    the sub-5 dB remainder. If the curve was rejected (OEM nonsense) or the route is
+ *    wireless with Absolute Volume, falls back to raw hardware indices with zero gain.
+ *
+ *  QUIET ZONE (below the line)
+ *    Exactly today's product: hardware pinned at the floor, gain runs 0..-30 dB in 5 dB steps.
+ *
+ *  MUTE
+ *    Media-stream mute (index 0), NOT a global-gain mute, so alarms keep ringing. Reversible:
+ *    unmute restores the exact previous index. Slider movement while muted cancels mute first.
+ *
+ *  EXTERNAL VOLUME CHANGES
+ *    Android can coalesce background broadcasts. Reconcile the current hardware index
+ *    against our last applied anchor, rather than interpreting one notification as one key.
+ *    Upward movement advances the quiet ladder, with surplus steps carried into normal
+ *    hardware volume. Late broadcasts cannot replay an already reconciled burst.
+ */
+class FullRangeCoordinator(
+    context: Context,
+    private val audioController: AudioController,
+    private val streamVol: StreamVolumeController
+) {
+
+    private val tag = "QuietNight:FullRange"
+    private val appContext = context.applicationContext
+    private val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+
+    // ── Post-trial lock ─────────────────────────────────────────────
+    /**
+     * True once the trial has run out with no key and no grandfather status. Wired by the
+     * service, which snapshots it at start so the answer cannot flip mid-session.
+     *
+     * Defaults to unlocked on purpose, matching [AudioController.proProvider]: a forgotten
+     * wiring must fail towards a working app, never towards a paying user losing depth.
+     *
+     * ALL THREE locked gestures consult this: quiet step, upper zone and mute. The quiet
+     * step used to be the exception, routed through the gain gate instead so that the gate
+     * could run a live preview of the step. The preview is gone (a trial user has already
+     * had seven days of the full range, so there is nothing left to demonstrate), and with
+     * it the reason for the exception. Refusing here is also the only truthful option: the
+     * gate clamps the GAIN but cannot stop this class from entering the quiet zone, which
+     * would render a step the device is not applying.
+     */
+    var lockedProvider: () -> Boolean = { false }
+
+    /**
+     * Read-only twin of [lockedProvider], for RENDERING only.
+     *
+     * [lockedProvider] is the gesture gate, and the service's answer to it opens the session
+     * latch the moment the key is present. That is right for a gesture (the tap that finds the
+     * key installed should simply work) and wrong for a repaint: a render that happened to run
+     * between the key's installation and the service handling it would open the latch silently,
+     * the service would then read the session as already open, and the buyer would not be
+     * returned to their place (2026-09-10). Repaints ask this instead, which mutates nothing.
+     * Defaults to the gate, so an unwired instance behaves exactly as before.
+     */
+    var lockedDisplayProvider: () -> Boolean = { lockedProvider() }
+
+    /**
+     * 1.7.0: what the dial should LOOK like, which is no longer a yes or no.
+     *
+     *  OPEN    every bar is live.
+     *  HELD    the free week ended while the control was on. The level that is applied stays
+     *          and is drawn lit; every other bar is drawn as unavailable, because choosing
+     *          another level on the dial asks for the unlock. The physical keys are untouched
+     *          by this state: [onExternalVolumeChange] runs as always, so volume-up still makes
+     *          the sound louder one step at a time and is the free way out of the quiet zone.
+     *          The user is never held at a low level. Nothing here is called "locked".
+     *  LOCKED  nothing is applied and nothing can be chosen.
+     *
+     * Read-only like [lockedDisplayProvider], and defaults to it, so an unwired instance
+     * renders exactly as before.
+     */
+    enum class LockDisplay { OPEN, HELD, LOCKED }
+
+    var lockDisplayProvider: () -> LockDisplay =
+        { if (lockedDisplayProvider()) LockDisplay.LOCKED else LockDisplay.OPEN }
+
+    /** A locked gesture. Carries the quiet step the user reached for, or null for upper/mute. */
+    var onLockedInteraction: ((pendingQuietStepDb: Float?) -> Unit)? = null
+
+    /**
+     * A quiet step was tapped during a cellular call, where it cannot do anything. The
+     * overlay answers with one short line rather than moving a bar that would be a lie.
+     */
+    var onQuietUnavailable: (() -> Unit)? = null
+
+    /** Media curve for the current output route; null = fallback to raw indices. */
+    @Volatile
+    var mediaCurve: VolumeCurve? = null
+        private set
+
+    /** Bumps every time external state changed in a way the overlay should re-render. */
+    private val _uiRevision = MutableStateFlow(0)
+    val uiRevision: StateFlow<Int> = _uiRevision.asStateFlow()
+
+    /**
+     * 1.4.4: what the overlay should FLASH after a physical key press that changed nothing
+     * visible. A press that lands inside the current 5 dB rung moves the hardware index but
+     * not the highlighted bar, which reads as "the app ignored me" — the measured
+     * comprehension defect. The flash acknowledges the press.
+     *
+     * [FlashTarget.QUIET_FIRST] is the owner-approved boundary behaviour: pressing DOWN while
+     * already on the lowest upper rung flashes the first bar BELOW the orange line instead of
+     * the current bar — an invitation into the quiet zone, not a wall. This is the exact
+     * moment the 1-star Motorola review got stuck at.
+     *
+     * Detection limit, stated honestly: VOLUME_CHANGED_ACTION only fires when the hardware
+     * index actually changes. On a device whose media minimum equals the current index, a
+     * down-press at the very floor produces NO broadcast and cannot be detected. The
+     * invitation therefore fires on every down-press WITHIN the lowest rung's index span
+     * (common: rungs span several indices) but not on the silent final press.
+     */
+    enum class FlashTarget { UPPER_CURRENT, QUIET_CURRENT, QUIET_FIRST }
+    data class FlashSignal(val id: Int, val target: FlashTarget?)
+
+    private val _flash = MutableStateFlow(FlashSignal(0, null))
+    val flash: StateFlow<FlashSignal> = _flash.asStateFlow()
+
+    private fun emitFlash(target: FlashTarget) {
+        _flash.value = FlashSignal(_flash.value.id + 1, target)
+    }
+
+    /** True while the media stream is muted. */
+    @Volatile
+    var isMuted: Boolean = false
+        private set
+    private var preMuteIndex: Int = -1
+    private var preMuteAttenuation: Float = 0f
+
+    /**
+     * Which zone the user is logically in. Needed because the gain alone is ambiguous:
+     * a small negative gain can be either a quiet-zone step or an upper-zone remainder.
+     *
+     * 1.7.1: stored beside the level and read back at start. Until then the start value was
+     * "the stored gain is negative", which is exactly the inference the note on [inQuietZone]
+     * forbids: after any start (stop and start, a restart of the device, an update) a level
+     * left on an upper rung came back as the quiet zone. The dial read "-5 dB" with the upper
+     * zone dark, and the first step up was absorbed back to the device's floor. Reproduced on
+     * the shipped 1.7.0 on 2026-10-04: media index 8 fell to 1 on one step up.
+     */
+    @Volatile
+    var zoneQuiet: Boolean = storedZone()
+        private set(value) {
+            field = value
+            // Same rule as the level itself: a locked session never overwrites what the last
+            // entitled moment stored, so the two always describe the same position.
+            if (audioController.keepsLevel()) Prefs.setLevelInQuietZone(appContext, value)
+        }
+
+    /**
+     * The zone the stored level belongs to. An install that has not changed zone since it
+     * updated has no record yet; for it the level decides, by its shape and not by its sign:
+     * quiet steps are whole multiples of the rung size, a rung's correction is not.
+     */
+    private fun storedZone(): Boolean {
+        val gain = audioController.attenuationDb.value
+        if (gain >= 0f) return false
+        return if (Prefs.hasLevelZone(appContext)) Prefs.isLevelInQuietZone(appContext)
+        else gain % VolumeCurve.RUNG_DB == 0f
+    }
+
+    /** Snapshot the overlay renders from. One source of truth, computed on demand. */
+    data class UiState(
+        val muted: Boolean,
+        val zoneQuiet: Boolean,
+        val quietDb: Float,
+        val upperPos: Int,
+        val upperCount: Int,
+        val percent: Int,
+        /**
+         * The quiet zone cannot act right now, so the dial must not offer it as if it could.
+         * True only during a CELLULAR call; see [StreamVolumeController.inCellularCall] for
+         * the AudioFlinger measurement behind it. VoIP calls are unaffected.
+         */
+        val quietUnavailable: Boolean
+    )
+
+    fun uiState(): UiState {
+        val stream = streamVol.activeStream()
+        val idx = streamVol.index(stream)
+        val max = streamVol.maxIndex(stream)
+        val percent = if (max > 0) (idx * 100) / max else 0
+        return UiState(
+            muted = isMuted,
+            zoneQuiet = zoneQuiet,
+            quietDb = audioController.attenuationDb.value,
+            upperPos = currentUpperPos(stream, idx),
+            upperCount = upperPositionCount(),
+            percent = percent,
+            quietUnavailable = streamVol.inCellularCall()
+        )
+    }
+
+    /**
+     * Position (0 = loudest) that best matches the CURRENT hardware state.
+     * The curve describes the MEDIA stream only — in a call the dial drives the voice
+     * stream, whose loudness table is different, so raw indices are the honest scale there.
+     */
+    private fun currentUpperPos(stream: Int, idx: Int): Int {
+        val curve = mediaCurve
+        return if (stream == AudioManager.STREAM_MUSIC && curve != null) {
+            val safeIdx = idx.coerceIn(0, curve.maxIndex)
+            val totalDb = curve.relDb[safeIdx] + audioController.attenuationDb.value
+            curve.nearestRung(totalDb)
+        } else {
+            (streamVol.maxIndex(stream) - idx).coerceAtLeast(0)
+        }
+    }
+
+    // Last hardware level accounted for by the quiet ladder; reset when the route changes.
+    private var quietHardwareAnchor = streamVol.index(AudioManager.STREAM_MUSIC)
+
+    /**
+     * The audio mode flipped (call started or ended), so [StreamVolumeController.activeStream]
+     * may now resolve differently and the upper-zone ladder must re-render. Control paths do
+     * not need this — they evaluate the stream live — this is display-freshness only.
+     */
+    fun onAudioModeChanged() {
+        Log.i(tag, "Audio mode changed — re-rendering (inCall=${streamVol.inCall()}, " + "cellular=${streamVol.inCellularCall()}) — cellular dims the quiet zone")
+        // In-call fix (2026-08-16): the effect chain sits on the output thread policy chose
+        // at creation time, and a call moves audio to a different output on many devices.
+        // Rebuild the effect so policy can re-attach it to the output that is live NOW.
+        // Runs on both edges (call start AND end) so media coverage is restored after
+        // hang-up too. Attenuation is preserved inside reattach().
+        reattachNow("mode-edge")
+        // The mode flips BEFORE telephony finishes opening its output on some devices, so an
+        // immediate reattach can lose the race and land on the old output. A second pass
+        // after the routing has settled makes the placement independent of that timing.
+        // Field signature this closes: control works in some calls and not in others.
+        scheduleSettleReattach()
+    }
+
+    /**
+     * The output route changed (speaker toggle, Bluetooth connect, wired plug). Media needs
+     * no help here — policy moves music-strategy effects with the music output on its own,
+     * which is why media attenuation always survived route changes. Call audio gets no such
+     * courtesy, so while in a call every route change must re-place the effect chain onto
+     * whichever output now carries the voice. Called by the service's AudioDeviceCallback.
+     */
+    fun onRouteChanged() {
+        if (!streamVol.inCall()) return
+        reattachNow("route-change")
+        scheduleSettleReattach()
+    }
+
+    // ── Reattach plumbing: one immediate pass, one settle pass, and a retry ladder for
+    //    transient init failures (a busy HAL during call setup must not strand the app on
+    //    the OEM-dependent LoudnessEnhancer fallback for the rest of the call). ──
+    private val handler = Handler(Looper.getMainLooper())
+    private var retriesLeft = MAX_REATTACH_RETRIES
+    private val settleReattach = Runnable { reattachNow("settle") }
+    private val retryReattach = Runnable {
+        if (!audioController.usingPreferredStrategy) reattachNow("retry")
+    }
+
+    /** Drops every pending re-attach pass. Called when the control stops (1.7.1). */
+    fun release() {
+        handler.removeCallbacks(settleReattach)
+        handler.removeCallbacks(retryReattach)
+    }
+
+    private fun scheduleSettleReattach() {
+        handler.removeCallbacks(settleReattach)
+        handler.postDelayed(settleReattach, REATTACH_SETTLE_MS)
+    }
+
+    private fun reattachNow(reason: String) {
+        Log.i(tag, "Reattach($reason)")
+        audioController.reattach()
+        if (audioController.usingPreferredStrategy) {
+            retriesLeft = MAX_REATTACH_RETRIES
+            handler.removeCallbacks(retryReattach)
+        } else if (retriesLeft > 0) {
+            retriesLeft--
+            Log.w(tag, "Reattach($reason) landed on fallback — retrying ($retriesLeft left)")
+            handler.removeCallbacks(retryReattach)
+            handler.postDelayed(retryReattach, REATTACH_RETRY_MS)
+        }
+        notifyUi()
+    }
+
+    /** (Re)read the media curve. Call on service start and on every output-route change. */
+    fun refreshCurve() {
+        // Wireless routes with Bluetooth Absolute Volume active (the modern default): the
+        // phone forwards the index and the HEADSET applies its own loudness curve, so the
+        // table getStreamVolumeDb reports is not what plays. Building the 5 dB ladder from
+        // it painted live bars over headset silence (field report, 2026-08-10). Raw indices
+        // are the honest scale there: every bar is a real hardware step, exactly what the
+        // volume keys do, so nothing on screen can be a step the ear never hears.
+        // If the user disabled Absolute Volume in developer options, the phone-side curve
+        // is back in charge and the uniform ladder is trustworthy again.
+        val wireless = VolumeCurve.isWirelessRoute(am)
+        mediaCurve = if (wireless && !absoluteVolumeDisabled()) {
+            Log.i(tag, "Wireless route with Absolute Volume: raw-index upper zone")
+            null
+        } else {
+            VolumeCurve.read(am, AudioManager.STREAM_MUSIC,
+                streamVol.minAudibleIndex(AudioManager.STREAM_MUSIC))
+        }
+        if (isMuted) {
+            // The saved pre-mute level belonged to the previous route, and indices are per
+            // route: restoring a headset level onto the speaker would be a loud surprise.
+            // Re-anchor to whatever the new route is already set to; if the mute itself
+            // carried over as zero, fall back to the minimum audible step instead of
+            // "unmute to silence".
+            val current = streamVol.index(AudioManager.STREAM_MUSIC)
+            preMuteIndex = if (current > 0) current
+                           else streamVol.minAudibleIndex(AudioManager.STREAM_MUSIC)
+        }
+        quietHardwareAnchor = streamVol.index(AudioManager.STREAM_MUSIC)
+        notifyUi()
+    }
+
+    /**
+     * The developer option "Disable absolute volume". The settings key string is stable
+     * AOSP since Android 8. Absent or unreadable means the feature is in its default
+     * state, which is ON, so we return false and stay conservative.
+     */
+    private fun absoluteVolumeDisabled(): Boolean = try {
+        android.provider.Settings.Global.getInt(
+            appContext.contentResolver, "bluetooth_disable_absolute_volume", 0
+        ) == 1
+    } catch (e: Exception) {
+        false
+    }
+
+    /**
+     * Which zone the user is in. MUST read the authoritative flag, never the gain's sign:
+     * our gain is also active ABOVE the line (it carries the sub-rung remainder that makes the
+     * 5 dB ladder uniform), so a negative gain does NOT imply the quiet zone.
+     *
+     * Getting this wrong caused a real fault, reported from hardware 2026-08-09: on the second
+     * rung from the bottom — the first one with a non-zero remainder — the absorb policy
+     * believed it was defending the quiet zone, saw the volume rise, and "corrected" it back to
+     * the floor. The dial snapped down a rung on its own, intermittently.
+     */
+    fun inQuietZone(): Boolean = zoneQuiet
+
+    /**
+     * Number of selectable positions in the upper zone for the CURRENT stream.
+     * Media with a valid curve: the 5 dB rung count. In a call, or with a rejected curve:
+     * raw hardware indices of the active stream.
+     */
+    fun upperPositionCount(): Int {
+        val stream = streamVol.activeStream()
+        val curve = mediaCurve
+        return if (stream == AudioManager.STREAM_MUSIC && curve != null) {
+            curve.rungs.size
+        } else {
+            streamVol.maxIndex(stream) - streamVol.minAudibleIndex(stream) + 1
+        }
+    }
+
+    /**
+     * User selected upper-zone position [pos] (0 = loudest). Clears any quiet-zone attenuation
+     * except the remainder, cancels mute if active.
+     */
+    fun applyUpper(pos: Int) {
+        if (lockedProvider()) { onLockedInteraction?.invoke(null); return }
+        if (isMuted) cancelMute()
+        val stream = streamVol.activeStream()
+        val curve = mediaCurve
+        if (stream == AudioManager.STREAM_MUSIC && curve != null) {
+            val rung = curve.rungs[pos.coerceIn(0, curve.rungs.lastIndex)]
+            streamVol.setIndex(stream, rung.hardwareIndex)
+            audioController.setAttenuation(rung.remainderDb, AudioController.GainSource.CURVE_REMAINDER)
+        } else {
+            // Raw-index path: in a call (voice stream — the media curve does not describe
+            // it), rejected curve, or wireless Absolute Volume. Gain MUST stay 0 in call
+            // mode — the gain is global (session 0) and belongs to the media scale; here
+            // every position is a real hardware step, nothing to fill in.
+            val top = streamVol.maxIndex(stream)
+            streamVol.setIndex(stream, (top - pos).coerceAtLeast(streamVol.minAudibleIndex(stream)))
+            audioController.setAttenuation(0f, AudioController.GainSource.SYSTEM)
+        }
+        zoneQuiet = false
+        notifyUi()
+    }
+
+    /**
+     * User selected quiet-zone step [stepDb] (a quiet step from −30 to 0 dB). Pins the media
+     * stream at its floor and hands the rest to the gain — exactly today's behaviour.
+     */
+    fun applyQuiet(stepDb: Float) {
+        // Locked: refuse before touching anything. Letting this run would pin the media
+        // stream, set zoneQuiet, and render stepDb as the live position while the gate
+        // holds the actual gain at 0 dB. The dial would be stating a level the device
+        // is not applying, on the one screen where we then ask for money.
+        if (lockedProvider()) { onLockedInteraction?.invoke(stepDb); return }
+        // Cellular call: refuse before touching anything, for the same reason the locked gate
+        // refuses above. The gain physically cannot reach the telephony output (measurement in
+        // StreamVolumeController.inCellularCall), so running this would pin the media stream,
+        // set zoneQuiet and light a -15 dB bar while the caller's voice carried on at exactly
+        // the same loudness. A dial that moves while the sound does not is the one thing this
+        // class must never do. VoIP calls fall through and work normally.
+        if (streamVol.inCellularCall()) { onQuietUnavailable?.invoke(); notifyUi(); return }
+        if (isMuted) cancelMute()
+        val media = AudioManager.STREAM_MUSIC
+        val floor = streamVol.minAudibleIndex(media)
+        val raiseToCalibratedFloor = floor > maxOf(1, am.getStreamMinVolume(media)) &&
+            streamVol.index(media) < floor
+        if (raiseToCalibratedFloor) {
+            // Entering from a headset's silent nonzero index must raise hardware to its
+            // calibrated audible floor. Apply attenuation first to avoid a loud burst.
+            audioController.setAttenuation(stepDb, AudioController.GainSource.QUIET_STEP)
+            streamVol.setIndex(media, floor)
+        } else {
+            streamVol.lowerTo(media, floor)
+        }
+        // VoIP call: the audible stream is the voice stream, which the media floor does not
+        // touch. Drop it to its own minimum too, so hardware does its half and the gain (which
+        // DOES reach VoIP audio, owner-verified in a WhatsApp call) carries the rest.
+        if (streamVol.inCall()) {
+            val voice = AudioManager.STREAM_VOICE_CALL
+            streamVol.lowerTo(voice, streamVol.minAudibleIndex(voice))
+        }
+        if (!raiseToCalibratedFloor) {
+            audioController.setAttenuation(stepDb, AudioController.GainSource.QUIET_STEP)
+        }
+        zoneQuiet = true
+        quietHardwareAnchor = streamVol.index(media)
+        notifyUi()
+    }
+
+    /** Calibrate only the output the listener saw when they pressed the preview button. */
+    fun calibrateBluetoothFloor(deviceName: String, index: Int) {
+        if (lockedProvider()) { onLockedInteraction?.invoke(null); return }
+        // Calibration previews MEDIA at normal gain; it must not change a call's sound.
+        if (streamVol.inCall() || streamVol.activeBluetoothName() != deviceName) return
+        val media = AudioManager.STREAM_MUSIC
+        val floor = index.coerceIn(maxOf(1, am.getStreamMinVolume(media)), streamVol.calibrationMaxIndex())
+        Prefs.setBluetoothFloor(appContext, deviceName, floor)
+        // The floor is also the bottom of the upper ladder. Rebuild it immediately.
+        refreshCurve()
+        // Set the chosen low hardware level BEFORE removing the previous attenuation.
+        // Do not cancelMute(), which would briefly restore the old, potentially high index.
+        streamVol.setIndex(media, floor)
+        audioController.setAttenuation(0f, AudioController.GainSource.SYSTEM)
+        isMuted = false
+        zoneQuiet = false
+        notifyUi()
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // Mute (media stream only — alarms survive by design)
+    // ────────────────────────────────────────────────────────────────
+
+    /**
+     * Put the displayed zone back in agreement with the gain that is actually applied.
+     *
+     * A quiet zone holding zero gain is an EMPTY quiet zone. The truthful description of
+     * "hardware at the floor, no gain" is the upper zone's bottom rung, and leaving
+     * zoneQuiet set makes the dial render a -5 dB step that is not applied, because
+     * dbToStep clamps 0 to the top visible quiet bar. The audio is correct either way;
+     * it is the readout that lies, which is worse in the locked state than anywhere else,
+     * since that is the screen where we ask for money.
+     *
+     * Two callers, both moments where the GATE moved the gain without the user touching
+     * anything, so nothing else would have corrected the zone:
+     *  - service start, after initialize() re-applies the persisted level through the gate
+     *    (a locked device with a stale deep level lands here on EVERY start)
+     *  - the moment the key arrives mid-session and the stored level is re-applied
+     *
+     * Before the trial model neither case could arise: the floor was a real -5 dB step,
+     * so a clamped level was always a legitimate quiet-zone position.
+     */
+    fun syncZoneToAppliedGain() {
+        if (audioController.attenuationDb.value >= 0f && zoneQuiet) {
+            zoneQuiet = false
+            notifyUi()
+        }
+    }
+
+    fun toggleMute() {
+        // Unmuting is always allowed; Quiet Night uses the open policy by default.
+        if (!isMuted && lockedProvider()) { onLockedInteraction?.invoke(null); return }
+        if (isMuted) cancelMute() else muteMedia()
+    }
+
+    /** Explicit, idempotent media mute; a held key can never toggle sound back on. */
+    fun muteMedia() {
+        if (isMuted || streamVol.inCall()) return
+        preMuteIndex = streamVol.index(AudioManager.STREAM_MUSIC)
+        preMuteAttenuation = audioController.attenuationDb.value
+        streamVol.muteMedia()
+        isMuted = streamVol.index(AudioManager.STREAM_MUSIC) == 0
+        if (isMuted) quietHardwareAnchor = 0
+        notifyUi()
+    }
+
+    private fun cancelMute() {
+        if (!isMuted) return
+        streamVol.restoreMedia(preMuteIndex)
+        audioController.setAttenuation(preMuteAttenuation, AudioController.GainSource.SYSTEM)
+        isMuted = false
+        notifyUi()
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // Absorb policy — called by the service's VOLUME_CHANGED receiver
+    // ────────────────────────────────────────────────────────────────
+
+    /**
+     * An external volume change was observed on [stream] (old [from] → new [to]).
+     * Reconcile observable movement without assuming Android delivered every intermediate event.
+     * Returning from silent calibrated indices is the only upward correction below the floor.
+     */
+    fun onExternalVolumeChange(stream: Int, from: Int, to: Int) {
+        if (streamVol.wasSelfChange(stream, from, to)) return
+        if (stream != AudioManager.STREAM_MUSIC) {
+            maybeFlashUpper(stream, from, to)
+            notifyUi()
+            return
+        }
+        // Notification extras can be old, or only describe the LAST key in a background burst.
+        val observed = streamVol.index(stream)
+        val floor = streamVol.minAudibleIndex(stream)
+        if (!streamVol.inCall() && !isMuted && to < from && !lockedProvider() &&
+            from <= floor && observed <= to && observed < floor && (!zoneQuiet || observed < quietHardwareAnchor)) {
+            val current = if (zoneQuiet) audioController.attenuationDb.value else 0f
+            val steps = (floor - observed).coerceAtLeast(1)
+            val next = QuietVolumeSteps.fall(current, steps, floor)
+            // Attenuate before restoring a headset's audible hardware floor.
+            audioController.setAttenuation(next.gainDb, AudioController.GainSource.SYSTEM)
+            if (next.hardwareIndex == 0) streamVol.muteMedia() else streamVol.setIndex(stream, next.hardwareIndex)
+            quietHardwareAnchor = next.hardwareIndex
+            zoneQuiet = true
+            notifyUi()
+            return
+        }
+        if (isMuted && to > from && observed > 0) {
+            isMuted = false
+            // Let the normal step reconciler recover calibrated audibility and count
+            // any additional up presses; never restore an old, potentially loud index.
+        }
+        if (!inQuietZone()) {
+            maybeFlashUpper(stream, from, to)
+            notifyUi()
+            return
+        }
+        if (isMuted) { notifyUi(); return }
+        if (to <= from) {
+            // Only a current downward observation can move the anchor. A late correction
+            // must not hide newer upward movement which has not been reconciled yet.
+            if (observed == to) quietHardwareAnchor = observed
+            if (to < from) emitFlash(FlashTarget.QUIET_CURRENT)
+            notifyUi()
+            return
+        }
+        // A current up event can reveal a preceding down/mute notification Android dropped.
+        val anchor = if (observed == to && observed < quietHardwareAnchor) from else quietHardwareAnchor
+        val next = QuietVolumeSteps.rise(audioController.attenuationDb.value, anchor,
+            observed, floor, streamVol.maxIndex(stream))
+        if (next != null) {
+            // Lower coarse hardware first, then ease gain. Surplus presses survive the seam.
+            // Raising is only needed to recover a calibrated headset from its silent indices.
+            if (next.hardwareIndex < observed) streamVol.lowerTo(stream, next.hardwareIndex)
+            else if (next.hardwareIndex > observed) streamVol.setIndex(stream, next.hardwareIndex)
+            audioController.setAttenuation(next.gainDb, AudioController.GainSource.SYSTEM)
+            quietHardwareAnchor = next.hardwareIndex
+            zoneQuiet = next.quiet
+        }
+        notifyUi()
+    }
+
+    /**
+     * Upper-zone press acknowledgement (1.4.4). Fires only when the rung DIDN'T change:
+     * a rung change already moves the highlighted bar, which is its own acknowledgement.
+     * Both positions are computed with the same current gain — no write happened between
+     * [from] and [to], the change was external.
+     */
+    private fun maybeFlashUpper(stream: Int, from: Int, to: Int) {
+        if (isMuted || zoneQuiet) return
+        if (stream != streamVol.activeStream()) return
+        val posFrom = currentUpperPos(stream, from)
+        val posTo = currentUpperPos(stream, to)
+        if (posFrom != posTo) return
+        val lowest = upperPositionCount() - 1
+        val invite = to < from && posTo >= lowest &&
+                stream == AudioManager.STREAM_MUSIC && !streamVol.inCall()
+        emitFlash(if (invite) FlashTarget.QUIET_FIRST else FlashTarget.UPPER_CURRENT)
+    }
+
+    private fun notifyUi() {
+        _uiRevision.value = _uiRevision.value + 1
+    }
+
+    fun dispose() {
+        handler.removeCallbacksAndMessages(null)
+    }
+
+    companion object {
+        // Reattach timing. Settle: long enough for telephony/Bluetooth routing to finish
+        // opening its output after a mode or device event, short enough that at most the
+        // first second of a call can be missed. Retry: spacing for transient init failures.
+        private const val REATTACH_SETTLE_MS = 1_000L
+        private const val REATTACH_RETRY_MS = 1_500L
+        private const val MAX_REATTACH_RETRIES = 3
+    }
+}

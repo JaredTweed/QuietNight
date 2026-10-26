@@ -1,5 +1,5 @@
 <resources>
-    <style name="Theme.GranularVolume" parent="Theme.Material3.Dark.NoActionBar">
+    <style name="Theme.QuietNight" parent="Theme.Material3.Dark.NoActionBar">
         <item name="colorPrimary">@color/gv_accent</item>
         <item name="colorOnPrimary">@color/gv_on_accent</item>
         <item name="colorPrimaryContainer">#493323</item>
