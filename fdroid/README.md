@@ -1,12 +1,12 @@
 # F-Droid submission preparation
 
-Quiet Night is a GPL-3.0-only fork maintained by Jared Tweed, with application ID `dev.jaredtweed.quietnight`. F-Droid signing was selected by the maintainer. This directory prepares a submission; it does not claim the app has been accepted or that a submission was sent.
+Quiet Night is a GPL-3.0-only fork maintained by Jared Tweed, with application ID `dev.jaredtweed.quietnight`. F-Droid signing was selected by the maintainer. This directory documents the F-Droid build recipe and submission process. Publication depends on F-Droid review and its own build/signing pipeline.
 
 ## Build and listing
 
 The app builds from `android/app` with the `fdroid` Gradle flavor, SDK 36, SDK build-tools 35.0.0, OpenJDK 17, AGP 8.10.1, Kotlin 2.2.20, and checksum-verified Gradle 8.11.1. Runtime dependencies come from Google Maven and Maven Central. Debug builds have a separate `.debug` application ID. Release builds are optimized with R8 and resource shrinking and have no developer signing configuration.
 
-English Fastlane metadata, current screenshots, the app icon, and the version-code 53 changelog live in `fastlane/metadata/android/en-US`. Inaccurate upstream listings and translations were removed; the interface is currently English. The current app keeps its unique package ID, distinct icon/name, and upstream authorship notices.
+English Fastlane metadata, current screenshots, the app icon, and the version-code 54 changelog live in `fastlane/metadata/android/en-US`. Inaccurate upstream listings and translations were removed; the interface is currently English. The current app keeps its unique package ID, distinct icon/name, and upstream authorship notices.
 
 Use the [current submission recipe](https://github.com/JaredTweed/QuietNight/blob/HEAD/fdroid/metadata/dev.jaredtweed.quietnight.yml) in a public fdroiddata fork. Only the app's YAML belongs in fdroiddata; the store listing is pulled from this repository. Copy the recipe unchanged after checking its pinned full source SHA. No `Binaries`, `binary`, or `AllowedAPKSigningKeys` fields are needed for the selected F-Droid signing route.
 

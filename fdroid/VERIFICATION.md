@@ -1,3 +1,9 @@
+# F-Droid build verification
+
+The 2.1.0 (54) release supersedes the initial submission candidate below. Its exact-source clean-build evidence will be recorded after the new immutable source tag is published and verified. No F-Droid review or publication is implied by local checks.
+
+## Archived 2.0.0 candidate verification
+
 # Verification of the proposed F-Droid source
 
 - App: Quiet Night, `dev.jaredtweed.quietnight`, version 2.0.0 / code 53.

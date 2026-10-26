@@ -1,7 +1,9 @@
 # Quiet Night
 
-## Unreleased
+## 2.1.0 (version code 54) — 2026-10-26
 
+- Rename internal packages and source folders to match Quiet Night; retain settings and Bluetooth calibrations.
+- Refresh the README and store screenshots for the current interface.
 - Estimate sunset/sunrise from the phone’s time-zone city automatically, with optional one-time location or saved-coordinate accuracy upgrades; all calculations stay offline.
 - Hold volume-down for two seconds to mute media while Quiet steps is on, including outside the app. This uses the existing accessibility service’s disclosed hardware-key capability; other keys are ignored and key handling is disabled with Quiet steps.
 - Full-screen filtering on Android 14+ can schedule without Alarms & reminders access; older-Android and app-only scheduling keep the existing fallback. Recheck the schedule on wake without adding polling or battery-exemption access.

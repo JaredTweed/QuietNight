@@ -1,27 +1,15 @@
-# Suggested merge request: New app — Quiet Night
+# New app: Quiet Night
 
-Adds `dev.jaredtweed.quietnight`, Quiet Night 2.0.0 (53).
+Proposed release: Quiet Night 2.1.0 (54), `dev.jaredtweed.quietnight`.
 
-Quiet Night is an independent GPL-3.0-only fork of Granular Volume / Quiet Dial, maintained by Jared Tweed. The maintainer has requested F-Droid inclusion preparation and selected F-Droid signing. The fork has its own package ID, name, moon-and-star icon, current English listing, privacy policy, issue tracker, and security-reporting route.
+The maintainer has authorized submission and selected F-Droid signing. This independent GPL-3.0-only app combines scheduled screen filtering with quiet media-volume control. It has a distinct application ID, moon-and-star icon, Material interface, Fastlane listing, privacy policy, and issue tracker. Upstream attribution is retained.
 
-Beyond the original media-volume controller, it adds scheduled screen tint/dimming, offline solar schedules, optional accessibility-based filtering over Quick Settings, independent Screen/Audio controls, and a minimal Material interface. The accessibility service requests no events, content retrieval, gesture injection, screenshot capability, or key filtering. There is no internet permission, advertising, analytics, billing, or non-free runtime dependency.
+Sunset scheduling defaults to offline reference-city coordinates for the phone's time zone, with optional one-shot location/manual coordinates. The trusted accessibility overlay includes Quick Settings. While Quiet steps is on, it requests hardware-key handling for a two-second volume-down hold to mute; other keys are immediately ignored, no keys are recorded, and normal volume handling continues. It requests no content events, screen retrieval, gestures, screenshots, or floating accessibility button. Key handling switches off with Quiet steps. There is no internet permission, advertising, analytics, billing, or non-free runtime dependency.
 
-The recipe contains one Gradle build, pinned to source commit `39dfd82afe32995994df6b382e2d0eab0d780145` (tag `quietnight-v2.0.0`). It builds the `fdroid` flavor from `android/app`, without an output override or scanner suppression. R8/resource shrinking are enabled and encrypted AGP dependency information is disabled. F-Droid will sign the result; the recipe does not request preservation of a developer certificate.
+The immutable source tag for this release is `quietnight-v2.1.0`. The final recipe must pin its full source commit, build the `fdroid` flavor from `android/app`, and contain only the latest version. R8/resource shrinking are enabled; AGP dependency information is disabled. No scanner bypass or developer-certificate preservation is requested. The maintainer chose F-Droid signing because there is no established developer-signed release certificate to preserve; debug builds use a separate application ID.
 
-English descriptions, screenshots, icon, and changelog are upstream in Fastlane format. Code, listing, and build details: https://github.com/JaredTweed/QuietNight
+The README and upstream Fastlane listing include four current screenshots. Source: https://github.com/JaredTweed/QuietNight
 
-Verification evidence: https://github.com/JaredTweed/QuietNight/blob/HEAD/fdroid/VERIFICATION.md
+The application has 141 passing regression tests and has been tested on a Pixel 8 Pro. The user confirmed the physical hold shortcut works while the app is in the background. Exact-release clean build and scanner results belong in VERIFICATION.md after they complete; do not mark official F-Droid CI or reviewer approval as passed prematurely.
 
-- [x] Public GPL source and meaningful fork differentiation.
-- [x] Unique application ID and distinct name/icon.
-- [x] Author contact through the issue tracker; maintainer consents to inclusion preparation.
-- [x] Accurate upstream English Fastlane metadata and code-53 changelog.
-- [x] Tagged source and scoped automatic tag-update checks.
-- [x] Local F-Droid recipe lint, source scanner, `fdroid build`, and binary scanner pass without bypasses.
-- [x] 68 regression tests, debug/release builds, lint, and upstream CI pass.
-- [ ] Official fdroiddata merge-request CI and maintainer/device review.
-- [ ] Reviewer determination of the maintenance-history/usage criterion for this new fork.
-
-History disclosure: the original code history starts on 2026-06-26, while Quiet Night-specific fork development began on 2026-10-23. We are not asserting that a policy exception has already been granted. If further public maintenance history or usage evidence is needed, please advise; no users or acceptance claims are being fabricated.
-
-Before posting: fork fdroiddata publicly, copy only `fdroid/metadata/dev.jaredtweed.quietnight.yml` to its `metadata/` directory, commit it on an unprotected app-specific branch, run its pipeline, and replace this draft's remaining unchecked items only when verified.
+History disclosure: upstream development began on 2026-06-26; this fork's development began on 2026-10-23. The maintainer uses it on their phone, but we do not claim a three-month fork history, an established public user base, or an approved policy exception. Reviewers must determine eligibility under Quality Control point 6.
