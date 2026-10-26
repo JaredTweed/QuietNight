@@ -55,7 +55,7 @@ The design favors dim red-orange light, which contains less short-wavelength lig
 
 ## F-Droid submission
 
-The submission is prepared for F-Droid signing and an entirely FOSS build; the app is not yet listed. See [F-Droid readiness and review notes](fdroid/README.md) for the recipe, verification evidence, release process, and remaining review requirements. The English Fastlane listing describes this fork; upstream listings are retained only in Git history.
+Quiet Night 2.1.0 has been [submitted for F-Droid review](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/54381), using F-Droid signing and an entirely FOSS build. It is not yet listed; publication depends on F-Droid review and its build/signing process. See [F-Droid readiness and review notes](fdroid/README.md) for the recipe, verification evidence, release process, and remaining review requirements. The English Fastlane listing describes this fork; upstream listings are retained only in Git history.
 
 [Privacy policy](PRIVACY.md) · [Source](https://github.com/JaredTweed/QuietNight) · [Report an issue](https://github.com/JaredTweed/QuietNight/issues)
 

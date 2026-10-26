@@ -1,6 +1,6 @@
 # F-Droid submission preparation
 
-Quiet Night is a GPL-3.0-only fork maintained by Jared Tweed, with application ID `dev.jaredtweed.quietnight`. F-Droid signing was selected by the maintainer. This directory documents the F-Droid build recipe and submission process. Publication depends on F-Droid review and its own build/signing pipeline.
+Quiet Night is a GPL-3.0-only fork maintained by Jared Tweed, with application ID `dev.jaredtweed.quietnight`. F-Droid signing was selected by the maintainer. This directory documents the F-Droid build recipe and submission process. Quiet Night 2.1.0 (54) was submitted in [fdroiddata merge request #54381](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/54381). Publication depends on F-Droid review and its own build/signing pipeline.
 
 ## Build and listing
 

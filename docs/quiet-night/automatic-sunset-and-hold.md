@@ -8,7 +8,7 @@ The existing accessibility service requests key filtering only while Quiet steps
 
 Another accessibility service can own key filtering, and Android scheduling can delay callbacks under load. The shortcut therefore depends on the trusted service being connected. It adds no Android uses-permission declaration and does not request screen contents, gestures, screenshots, or an accessibility button.
 
-The development changes require a new version/tag and an updated F-Droid recipe before submission. Passing local scans does not constitute F-Droid acceptance, and the existing release tag remains unchanged.
+These changes are included in release 2.1.0, tagged `quietnight-v2.1.0`, with a full-commit-pinned F-Droid recipe. The older release tag remains unchanged. The [F-Droid submission](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/54381) is pending review; passing local scans does not constitute acceptance.
 
 ## Namespace and upgrade check
 
