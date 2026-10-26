@@ -79,7 +79,7 @@ class HomeScreenTest {
         bitmap.recycle()
     }
     private fun MainActivity.action(name: String) =
-        views(window.decorView).filterIsInstance<ExtendedFloatingActionButton>().single { it.text.startsWith(name) }
+        views(window.decorView).filterIsInstance<ExtendedFloatingActionButton>().single { it.contentDescription.toString().startsWith("Turn $name ") }
     @Test fun homeShowsTwoIndependentBottomRightControlsAndPreciseSchedule() {
         val app = RuntimeEnvironment.getApplication()
         SleepSettings.prefs(app).edit().clear().commit()
@@ -93,6 +93,8 @@ class HomeScreenTest {
             assertTrue(initial.filterIsInstance<Slider>().any { it.valueTo == 100f })
             assertTrue(initial.filterIsInstance<Slider>().none { it.contentDescription == "Extra attenuation" })
             assertEquals(2, initial.filterIsInstance<ExtendedFloatingActionButton>().size)
+            assertEquals("Filter off", activity.action("screen filter").text.toString())
+            assertEquals("Quiet steps off", activity.action("quiet steps").text.toString())
             assertTrue(initial.filterIsInstance<QuietLevelIndicator>().isEmpty())
             assertTrue(initial.filterIsInstance<Button>().none { it.text.toString() == "Begin wind-down" })
             screenshots(activity, "quiet-night-home")
@@ -111,20 +113,20 @@ class HomeScreenTest {
         val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
         try {
             val activity = controller.get()
-            activity.action("Screen").performClick()
+            activity.action("screen filter").performClick()
             var config = SleepSettings.read(activity)
             assertTrue(config.screen); assertFalse(config.audio)
-            activity.action("Audio").performClick()
+            activity.action("quiet steps").performClick()
             config = SleepSettings.read(activity)
             assertTrue(config.screen); assertTrue(config.audio)
             val indicator = views(activity.window.decorView).filterIsInstance<QuietLevelIndicator>().single()
             views(activity.window.decorView).filterIsInstance<ScrollView>().single()
                 .scrollTo(0, (indicator.parent as View).top)
             screenshots(activity, "quiet-night-independent-controls")
-            activity.action("Screen").performClick()
+            activity.action("screen filter").performClick()
             config = SleepSettings.read(activity)
             assertFalse(config.screen); assertTrue(config.audio)
-            activity.action("Audio").performClick()
+            activity.action("quiet steps").performClick()
             assertFalse(SleepSettings.read(activity).audio)
         } finally { controller.pause().stop().destroy() }
     }
@@ -165,6 +167,11 @@ class HomeScreenTest {
             assertTrue((buttons.first().parent as View).getGlobalVisibleRect(dockBounds))
             assertTrue(indicatorBounds.bottom <= dockBounds.top)
             assertTrue(buttons.all { it.width >= 120 * activity.resources.displayMetrics.density })
+            val starting = activity.action("quiet steps")
+            assertEquals("Starting quiet steps", starting.text.toString())
+            assertTrue(starting.layout.lineCount <= 2)
+            assertTrue((0 until starting.layout.lineCount).all { starting.layout.getEllipsisCount(it) == 0 })
+            assertEquals(starting.text.length, starting.layout.getLineEnd(starting.layout.lineCount - 1))
         } finally { controller.pause().stop().destroy() }
     }
 
@@ -183,7 +190,7 @@ class HomeScreenTest {
             val dialog = org.robolectric.shadows.ShadowDialog.getLatestDialog()
             assertTrue(dialog.isShowing)
             assertTrue(views(dialog.window!!.decorView).filterIsInstance<TextView>().any {
-                it.text.contains("Screen and Audio work independently")
+                it.text.contains("Screen filter and Quiet steps work independently")
             })
             dialog.dismiss()
         } finally { controller.pause().stop().destroy() }
@@ -196,7 +203,7 @@ class HomeScreenTest {
         val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
         try {
             val activity = controller.get()
-            activity.action("Audio").performClick()
+            activity.action("quiet steps").performClick()
             val all = views(activity.window.decorView)
             assertTrue(all.filterIsInstance<MaterialSwitch>().none {
                 it.contentDescription == "Quiet steps with volume-down" || it.contentDescription == "Floating controls"

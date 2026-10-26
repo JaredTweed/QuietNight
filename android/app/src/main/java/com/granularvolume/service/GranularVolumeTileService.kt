@@ -31,8 +31,8 @@ class GranularVolumeTileService : TileService() {
         val config = SleepSettings.read(this)
         qsTile?.apply {
             icon = Icon.createWithResource(this@GranularVolumeTileService, R.drawable.ic_qs_tile)
-            label = "Quiet Night screen"
-            contentDescription = "Screen controls ${if (config.screen) "on" else "off"}"
+            label = "Quiet Night filter"
+            contentDescription = "Screen filter ${if (config.screen) "on" else "off"}"
             state = if (config.screen) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
             if (Build.VERSION.SDK_INT >= 29) subtitle = when {
                 !config.screen -> "Off"

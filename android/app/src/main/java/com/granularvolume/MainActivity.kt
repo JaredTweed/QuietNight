@@ -150,6 +150,8 @@ class MainActivity : AppCompatActivity() {
         ExtendedFloatingActionButton(this).apply {
             text = label; contentDescription = description
             isAllCaps = false; textSize = 14f
+            // The starting label needs two lines on compact screens.
+            isSingleLine = false; maxLines = 2; ellipsize = null
             setIconResource(icon); minimumWidth = dp(126)
             setTextColor(if (active) NightColors.background else NightColors.text)
             iconTint = ColorStateList.valueOf(if (active) NightColors.background else NightColors.lavender)
@@ -294,8 +296,8 @@ class MainActivity : AppCompatActivity() {
             bluetoothCalibration(sound, active)
         }
 
-        val screen = actionButton("Screen off", R.drawable.ic_screen_controls, config.screen, "Toggle screen controls") { toggleScreen() }
-        val audio = actionButton("Audio off", R.drawable.ic_volume_slider, config.audio, "Toggle audio controls") { toggleAudio() }
+        val screen = actionButton("Filter off", R.drawable.ic_screen_controls, config.screen, "Toggle screen filter") { toggleScreen() }
+        val audio = actionButton("Quiet steps off", R.drawable.ic_volume_slider, config.audio, "Toggle quiet steps") { toggleAudio() }
         actions.addView(screen, LinearLayout.LayoutParams(0, dp(56), 1f))
         actions.addView(audio, LinearLayout.LayoutParams(0, dp(56), 1f).apply { marginStart = dp(8) })
         screenAction = screen; audioAction = audio
@@ -314,14 +316,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun help() {
         MaterialAlertDialogBuilder(this).setTitle("Quiet Night")
-            .setMessage("Screen and Audio work independently.\n\nWarmth adds a tint; Dim darkens the display. Set either to 0% to turn it off. System brightness stays unchanged.\n\nSchedule applies to Screen only. Drag the dial or tap Start and End for exact times.\n\nWith Audio on, use your volume keys. Volume-down adds quiet steps below the usual minimum, then mutes after −30 dB. Volume-up brings sound back.\n\nFor notifications and Quick Settings, enable full-screen dimming. The accessibility service only draws a filter; it cannot read screens or control gestures.")
+            .setMessage("Screen filter and Quiet steps work independently.\n\nWarmth adds a tint; Dim darkens the display. Set either to 0% to turn it off. System brightness stays unchanged.\n\nSchedule applies to the filter only. Drag the dial or tap Start and End for exact times.\n\nWith Quiet steps on, use your volume keys. Volume-down adds quiet steps below the usual minimum, then mutes after −30 dB. Volume-up brings sound back.\n\nFor notifications and Quick Settings, enable full-screen dimming. The accessibility service only draws a filter; it cannot read screens or control gestures.")
             .setNeutralButton("Full-screen dimming") { _, _ -> screenOverlayHelp() }
             .setPositiveButton("Done", null).show()
     }
 
     private fun screenOverlayHelp() {
         MaterialAlertDialogBuilder(this).setTitle("Full-screen dimming")
-            .setMessage("Enable Quiet Night screen dimming in Accessibility settings to automatically include notifications and Quick Settings whenever Screen is on. Leave the accessibility shortcut off; no floating button is needed.\n\nIt only draws a touch-through filter. It does not read screen content, observe actions, or control gestures. System brightness stays unchanged.")
+            .setMessage("Enable Quiet Night screen dimming in Accessibility settings to automatically include notifications and Quick Settings whenever the filter is on. Leave the accessibility shortcut off; no floating button is needed.\n\nIt only draws a touch-through filter. It does not read screen content, observe actions, or control gestures. System brightness stays unchanged.")
             .setNegativeButton("Cancel", null)
             .setPositiveButton("Open settings") { _, _ ->
                 timingPermission.launch(ScreenOverlayService.settingsIntent())
@@ -331,10 +333,10 @@ class MainActivity : AppCompatActivity() {
         val config = SleepSettings.read(this); val plan = schedule.plan(config)
         if (renderedSystemOverlay != ScreenOverlayService.isConnected() ||
             (config.audio && renderedAudioReady != (ControlLive.audioState != null))) { render(); return }
-        styleAction(screenAction, "Screen", config.screen,
+        styleAction(screenAction, "Filter", "screen filter", config.screen,
             SleepScheduler.screenReady(this, config) && SleepScheduler.timingReady(this, config), plan.active)
-        styleAction(audioAction, "Audio", config.audio, true, ControlLive.audioState != null)
-        if (config.audio && ControlLive.audioState == null) audioAction?.text = "Audio starting"
+        styleAction(audioAction, "Quiet steps", "quiet steps", config.audio, true, ControlLive.audioState != null)
+        if (config.audio && ControlLive.audioState == null) audioAction?.text = "Starting quiet steps"
         val gain = if (Prefs.isLevelInQuietZone(this)) (-Prefs.getAttenuation(this)).coerceIn(0f, 30f) else 0f
         quietIndicator?.setLevel(gain, config.audio && ControlLive.audioState != null, ControlLive.audioState)
         val hint = when {
@@ -348,16 +350,16 @@ class MainActivity : AppCompatActivity() {
         quietHint?.text = hint
         quietHint?.visibility = if (hint.isEmpty()) View.GONE else View.VISIBLE
     }
-    private fun styleAction(action: ExtendedFloatingActionButton?, name: String, on: Boolean, ready: Boolean, active: Boolean) {
+    private fun styleAction(action: ExtendedFloatingActionButton?, name: String, feature: String, on: Boolean, ready: Boolean, active: Boolean) {
         action ?: return
         val live = on && ready && active
         action.text = when {
             !on -> "$name off"
-            !ready -> "$name setup"
+            !ready -> "Set up ${name.lowercase(Locale.ROOT)}"
             active -> "$name on"
             else -> "$name scheduled"
         }
-        action.contentDescription = "Turn $name controls ${if (on) "off" else "on"}"
+        action.contentDescription = "Turn $feature ${if (on) "off" else "on"}"
         val fg = when { !on -> NightColors.text; live -> NightColors.background; else -> NightColors.lavender }
         action.setTextColor(fg)
         action.iconTint = ColorStateList.valueOf(fg)
@@ -401,7 +403,7 @@ class MainActivity : AppCompatActivity() {
         }, time / 60, time % 60, android.text.format.DateFormat.is24HourFormat(this)).show()
     }
     private fun command(action: String, extras: Intent.() -> Unit = {}) {
-        if (!ControlLive.running || !SleepSettings.read(this).audio) { toast("Turn on Audio first"); return }
+        if (!ControlLive.running || !SleepSettings.read(this).audio) { toast("Turn on Quiet steps first"); return }
         startService(Intent(this, VolumeControlService::class.java).setAction(action).apply(extras))
     }
     private fun bluetoothCalibration(parent: LinearLayout, active: Boolean) {
