@@ -14,14 +14,14 @@ RepoType: git
 Repo: https://github.com/JaredTweed/QuietNight.git
 
 Builds:
-  - versionName: 2.0.0
-    versionCode: 53
-    commit: 39dfd82afe32995994df6b382e2d0eab0d780145
+  - versionName: 2.1.0
+    versionCode: 54
+    commit: f98bc0cf3c0ad9d2112c42ce59e14a6c96845d35
     subdir: android/app
     gradle:
       - fdroid
 
-AutoUpdateMode: Version quietnight-v%v
+AutoUpdateMode: Version
 UpdateCheckMode: Tags ^quietnight-v[0-9].*$
-CurrentVersion: 2.0.0
-CurrentVersionCode: 53
+CurrentVersion: 2.1.0
+CurrentVersionCode: 54

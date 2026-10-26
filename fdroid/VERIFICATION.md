@@ -1,29 +1,37 @@
-# F-Droid build verification
+# Verification of Quiet Night 2.1.0 for F-Droid
 
-The 2.1.0 (54) release supersedes the initial submission candidate below. Its exact-source clean-build evidence will be recorded after the new immutable source tag is published and verified. No F-Droid review or publication is implied by local checks.
+- Application ID: `dev.jaredtweed.quietnight`.
+- Version: 2.1.0 / code 54.
+- Immutable source tag: `quietnight-v2.1.0`.
+- Source commit: `f98bc0cf3c0ad9d2112c42ce59e14a6c96845d35`.
+- Signing route: F-Droid signing, explicitly selected by the maintainer; no developer certificate or reference binary is requested.
+- License: GPL-3.0-only, with upstream attribution and public-domain IANA data notices retained.
 
-## Archived 2.0.0 candidate verification
+## Exact-source build
 
-# Verification of the proposed F-Droid source
+A separate clean checkout of the public source commit was built using F-Droid Server 2.4.5 and its official `gradlew-fdroid` helper, with OpenJDK 17, SDK 36, build-tools 35.0.0, AGP 8.10.1, Kotlin 2.2.20, and checksum-verified Gradle 8.11.1:
 
-- App: Quiet Night, `dev.jaredtweed.quietnight`, version 2.0.0 / code 53.
-- Source commit: `39dfd82afe32995994df6b382e2d0eab0d780145`.
-- Immutable source tag: `quietnight-v2.0.0`.
-- License: GPL-3.0-only; upstream attribution retained.
-- Signing route: F-Droid signing, selected by the maintainer. No developer key or reference binary is required by this recipe.
+```sh
+fdroid build --stop --test --scan-binary --refresh-scanner --no-tarball dev.jaredtweed.quietnight:54
+```
 
-## Checks performed
+Result: **one build succeeded**. Source scanning and APK scanning were enabled, including non-free class and extra-signing-block checks. The official Gradle wrapper was removed by F-Droid's normal preparation. There were no `scanignore`, `scandelete`, forced scanner bypasses, source patches, or developer signing configuration.
 
-1. Local debug assembly, release assembly, and debug lint succeeded with AGP 8.10.1, Kotlin 2.2.20, Gradle 8.11.1, OpenJDK 17, SDK 36, and SDK build-tools 35.0.0. All 68 regression tests passed. Lint had zero errors; pre-existing warnings remain.
-2. The Gradle distribution SHA-256 and wrapper JAR were checked against Gradle's official checksums. The wrapper JAR is `2db75c40782f5e8ba1fc278a5574bab070adccb2d21ca5a6e5ed840888448046`.
-3. `python3 tools/check_fdroid_metadata.py` passed: matching app/store title, summary/description limits, version-code 53 changelog, 512x512 icon, three current PNG screenshots, no stale fork URLs, and no unexpected network/microphone/billing/advertising permissions.
-4. F-Droid Server 2.4.5's source scanner reported zero problems in a clean prepared source tree. The scanner removed the official Gradle wrapper as expected. No broad `scanignore`, `scandelete`, or forced scan bypass was used.
-5. F-Droid Server 2.4.5 metadata rewrite and lint passed against the current fdroiddata category configuration. `fdroid checkupdates` recognized the release and application name using the `quietnight-v*` tag filter.
-6. A separate clean clone of the published commit was built by `fdroid build --stop --test --scan-binary --refresh-scanner --no-tarball dev.jaredtweed.quietnight:53`, using the official version-matched `gradlew-fdroid` helper. Source and binary scans were enabled. Result: **one build succeeded**. The local metadata workspace was bootstrapped with the clean clone before invoking the CLI; no source or scanner patches were applied.
-7. The resulting unsigned APK passed scanning for known non-free classes and extra signing blocks. Package/version/SDK checks: `dev.jaredtweed.quietnight`, 2.0.0, 53, min SDK 28, target SDK 36.
-8. The clean F-Droid CLI build and local release APK have the same SHA-256: `23c66228bb471e2f139f8524dc494756b2a6e5ccd0927b1a10955c4dbb60c2b5`. This is a same-environment reproducibility check, not a claim of independent F-Droid server reproduction or a developer-signature comparison.
-9. GitHub's Android CI passed on both published branches for this source commit, and the source-tag release-build workflow passed. The updated debug APK was installed on the connected Pixel without clearing data.
+Unsigned APK SHA-256: `142fb341f6233206c35af3c1683bed75090b4e94f1df8d89ddcf4bc118ed52c4`.
 
-## Submission boundary
+This is local clean-build evidence, not a claim that F-Droid has approved, signed, or published the application, or that an independently signed release has been reproduced.
 
-The recipe and this evidence are prepared for a new-app fdroiddata merge request. No GitLab submission, official F-Droid build-server run, inclusion approval, or signing/publication by F-Droid has happened. The new-fork maintenance-history/usage question in [README.md](README.md) remains for reviewers. The separate Bluetooth-fix branch was not changed.
+## Additional checks
+
+- F-Droid metadata rewrite and lint passed locally. Tag-based automatic updates use `AutoUpdateMode: Version`, as required by the current fdroiddata schema; the `UpdateCheckMode` regex restricts accepted release tags. The recipe contains only the latest build and pins the complete source SHA.
+- The upstream metadata checker passed, including the code-54 changelog and four current screenshots. The README screenshots were updated before the source tag and submission.
+- The generated offline time-zone city lookup matches the pinned public-domain IANA tzdb 2026e source tables. Builds and runtime do not download city data.
+- All 141 regression tests passed after the namespace migration. Debug/release builds and debug lint passed, with no lint errors and 77 existing warnings.
+- GitHub [Android CI](https://github.com/JaredTweed/QuietNight/actions/runs/40346488464) and the [tagged release build](https://github.com/JaredTweed/QuietNight/actions/runs/40346489138) passed for this exact source commit.
+- The matching runtime implementation was installed on a Pixel 8 Pro before the version-only release bump. All existing preference values were retained, the renamed trusted service connected without a floating button or crash entry, and the maintainer confirmed that a physical two-second volume-down hold muted media with the app in the background.
+
+## Submission review
+
+The public fdroiddata branch is based on upstream master and is not protected. Only `metadata/dev.jaredtweed.quietnight.yml` was added. Its [pipeline](https://gitlab.com/JaredTweed/fdroiddata/-/pipelines/2990416651) is separate from the upstream app's GitHub CI.
+
+The fork's development began on 2026-10-23; the inherited source history began on 2026-06-26. The maintainer uses the app, but no established public user base, three-month fork history, policy exception, or inclusion approval is claimed. F-Droid reviewers must assess the Quality Control point 6 criterion and the final submission.
