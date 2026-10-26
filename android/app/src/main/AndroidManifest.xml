@@ -3,13 +3,12 @@
 
     <!-- Audio attenuation via AudioEffect global session -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
-    <!-- Floating overlay -->
+    <!-- Optional app-only fallback; not needed with full-screen accessibility filtering. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- Foreground service (required Android 8+) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <!-- specialUse: the service maintains a real-time audio-attenuation effect + floating
-         volume overlay while the user listens to media in other apps. It does not play media
-         itself, so it does not fit mediaPlayback; specialUse is the correct category. -->
+    <!-- specialUse: maintains the user-enabled audio effect and screen-filter session.
+         It does not play media, so mediaPlayback is not the appropriate service type. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <!-- Auto-start on boot -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -18,6 +17,8 @@
     <!-- Only to restore an outstanding brightness transaction from a pre-overlay version.
          The overlay slider never writes system settings; new installs never request this. -->
     <uses-permission android:name="android.permission.WRITE_SETTINGS" tools:ignore="ProtectedPermissions" />
+    <!-- Optional persistent scheduling fallback for app-only overlays and Android 12/13.
+         Full-screen filtering on Android 14+ uses its bound service's listener timer. -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />

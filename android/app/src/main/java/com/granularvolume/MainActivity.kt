@@ -281,7 +281,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-        if (config.mode != ScheduleMode.ALWAYS && !SleepScheduler.hasTimingPermission(this)) {
+        if (config.mode != ScheduleMode.ALWAYS && !SleepScheduler.timingReady(this, config)) {
             schedule.add(button("Allow schedule access") { openTimingPermission() }, 8)
         }
 
@@ -379,13 +379,13 @@ class MainActivity : AppCompatActivity() {
     }
     private fun requestScreenAccess() {
         if (!ScreenOverlayService.isConnected() && !PermissionHelper.canDrawOverlays(this)) {
-            overlayPermission.launch(PermissionHelper.overlayPermissionIntent(this)); return
+            screenOverlayHelp(); return
         }
         continueScreenAccess()
     }
     private fun continueScreenAccess() {
         val config = SleepSettings.read(this)
-        if (config.mode != ScheduleMode.ALWAYS && !SleepScheduler.hasTimingPermission(this)) openTimingPermission()
+        if (config.mode != ScheduleMode.ALWAYS && !SleepScheduler.timingReady(this, config)) openTimingPermission()
     }
     private fun requestNotifications() {
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)

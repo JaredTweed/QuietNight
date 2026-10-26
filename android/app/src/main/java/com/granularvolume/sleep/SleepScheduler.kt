@@ -24,7 +24,7 @@ object SleepScheduler {
         (ScreenOverlayService.isConnected() || PermissionHelper.canDrawOverlays(context))
 
     fun timingReady(context: Context, config: SleepConfig): Boolean =
-        config.mode == ScheduleMode.ALWAYS || hasTimingPermission(context)
+        config.mode == ScheduleMode.ALWAYS || ScreenOverlayService.hasLiveSchedule() || hasTimingPermission(context)
 
     fun screenRunnable(context: Context, config: SleepConfig): Boolean =
         config.screen && screenReady(context, config) && timingReady(context, config)
@@ -42,13 +42,21 @@ object SleepScheduler {
         val pi = alarm(context)
         manager.cancel(pi)
         val plan = SleepSchedule.plan(config)
+        val live = if (config.screen && screenReady(context, config) && ScreenOverlayService.hasLiveSchedule()) {
+            ScreenOverlayService.armSchedule(plan.nextChange)
+        } else {
+            ScreenOverlayService.cancelSchedule()
+            false
+        }
         val screenOn = screenRunnable(context, config)
         val audioOn = audioRunnable(context, config)
+        // Apply trusted filtering immediately on wake; service startup is asynchronous.
+        ScreenOverlayService.update(config.copy(screen = screenOn && plan.active))
         if (!screenOn && !audioOn) {
             context.stopService(Intent(context, VolumeControlService::class.java))
             return
         }
-        if (config.screen && timingReady(context, config)) plan.nextChange?.let {
+        if (config.screen && !live && hasTimingPermission(context)) plan.nextChange?.let {
             try { manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, it.toEpochMilli(), pi) }
             catch (_: SecurityException) { /* Audio stays independent if timing access was revoked. */ }
         }

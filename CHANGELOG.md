@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Full-screen filtering on Android 14+ can schedule without Alarms & reminders access; older-Android and app-only scheduling keep the existing fallback. Recheck the schedule on wake without adding polling or battery-exemption access.
 - Preserve accumulated quiet-volume steps when Android batches background volume notifications.
 - Carry surplus volume-up steps into normal hardware volume, and ignore late notifications already covered by a correction.
 - Handle coalesced mute/unmute and calibrated-headset transitions without adding permissions or background polling.
