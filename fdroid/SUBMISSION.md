@@ -66,7 +66,7 @@ The inherited source history starts on 2026-06-26, while this fork's development
 * [x] F-Droid Server 2.4.5 metadata rewrite and lint passed locally.
 * [x] A clean checkout of the exact public source commit passed `fdroid build --stop --test --scan-binary --refresh-scanner --no-tarball dev.jaredtweed.quietnight:54`: **one build succeeded**, with source and APK scanners enabled and no bypasses.
 * [x] All 141 app regression tests passed. The [exact-source Android CI](https://github.com/JaredTweed/QuietNight/actions/runs/40346488464) and [tagged release build](https://github.com/JaredTweed/QuietNight/actions/runs/40346489138) passed. App lint has no errors; 77 existing warnings are disclosed in the verification notes.
-* [ ] The updated developer-signature [pipeline](https://gitlab.com/JaredTweed/fdroiddata/-/pipelines/2991416334) is being checked. The earlier source/build pipeline passed all nine checks; the new pipeline additionally verifies the signed reference. F-Droid maintainer review remains pending.
+* [x] The developer-signature [pipeline](https://gitlab.com/JaredTweed/fdroiddata/-/pipelines/2991416334) passes all nine checks. F-Droid rebuilt the pinned source and successfully verified the published developer-signed reference APK. Maintainer review remains pending.
 * [ ] F-Droid maintainer review and CI-produced APK/device review remain pending.
 
 ### APK report notes

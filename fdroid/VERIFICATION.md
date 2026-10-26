@@ -46,4 +46,4 @@ The [2.1.0 production APK](https://github.com/JaredTweed/QuietNight/releases/dow
 
 The signer preserves existing ZIP alignment for build-tools 35 compatibility. Android signature verification and signature-copy reproduction passed. The helper also correctly refused mismatched rebuilds, a debug package, and overwriting an existing release. The encrypted key stays outside the repository and CI; the public certificate and reproducibility-aware signer are committed. See [SIGNING.md](SIGNING.md).
 
-The earlier all-green pipeline above predates the developer-signed reference. The updated F-Droid pipeline must independently verify this reference before its result is recorded here.
+The [updated F-Droid pipeline](https://gitlab.com/JaredTweed/fdroiddata/-/pipelines/2991416334) passed all nine checks, including rebuilding the pinned source and successfully verifying the published developer-signed APK. Its [build job](https://gitlab.com/JaredTweed/fdroiddata/-/jobs/17481959825) performs the independent reference verification. Inclusion approval remains pending.
