@@ -213,6 +213,82 @@ class SleepPlatformTest {
         assertEquals(85, config.dim); assertEquals(0, config.warmth)
     }
 
+    @Test fun fadePreferencesMigrateToInstantAndClampInvalidRestoredDurations() {
+        assertEquals(0, SleepSettings.read(context).fadeInMinutes)
+        SleepSettings.write(context, SleepConfig(fadeInMinutes = 12))
+        assertEquals(12, SleepSettings.read(context).fadeInMinutes)
+        SleepSettings.prefs(context).edit().putInt("fade_in_minutes", -5).commit()
+        assertEquals(0, SleepSettings.read(context).fadeInMinutes)
+        SleepSettings.write(context, SleepConfig(fadeInMinutes = 1000))
+        assertEquals(60, SleepSettings.read(context).fadeInMinutes)
+    }
+
+    @Test fun trustedFadeResumesProgressAndStopsWithoutARecurringTimer() {
+        val origin = java.time.Instant.parse("2026-10-27T03:00:00Z")
+        val uptime = android.os.SystemClock.uptimeMillis()
+        val overlay = NightOverlay(context, systemUi = true,
+            now = { origin.plusMillis(android.os.SystemClock.uptimeMillis() - uptime) })
+        val config = SleepConfig(screen = true, mode = ScheduleMode.CUSTOM,
+            fadeInMinutes = 1, dim = 80, warmth = 0)
+        val plan = SleepPlan(true, origin.plusSeconds(3600), activeSince = origin)
+        val view = ArgumentCaptor.forClass(android.view.View::class.java)
+        try {
+            assertTrue(overlay.update(config, plan))
+            verify(windows).addView(view.capture(), any(WindowManager.LayoutParams::class.java))
+            fun opacity() = android.graphics.Color.alpha(
+                (view.value.background as android.graphics.drawable.ColorDrawable).color)
+            assertEquals(0, opacity())
+            org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper())
+                .idleFor(java.time.Duration.ofSeconds(30))
+            assertTrue(opacity() in 99..102)
+            val before = opacity()
+            overlay.update(config.copy(audio = true), plan)
+            assertEquals(before, opacity())
+            org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper())
+                .idleFor(java.time.Duration.ofSeconds(30))
+            assertEquals(204, opacity())
+            clearInvocations(windows)
+            org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper())
+                .idleFor(java.time.Duration.ofHours(1))
+            verify(windows, never()).updateViewLayout(any(android.view.View::class.java), any(WindowManager.LayoutParams::class.java))
+        } finally { overlay.close() }
+    }
+
+    @Test fun closingOrEndingAScheduledWindowCancelsPendingFadeCallbacks() {
+        val origin = java.time.Instant.parse("2026-10-27T03:00:00Z")
+        val uptime = android.os.SystemClock.uptimeMillis()
+        val overlay = NightOverlay(context, systemUi = true,
+            now = { origin.plusMillis(android.os.SystemClock.uptimeMillis() - uptime) })
+        val config = SleepConfig(screen = true, mode = ScheduleMode.CUSTOM, fadeInMinutes = 60)
+        val plan = SleepPlan(true, origin.plusSeconds(1), activeSince = origin)
+        overlay.update(config, plan)
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper())
+            .idleFor(java.time.Duration.ofSeconds(1))
+        verify(windows).removeView(any(android.view.View::class.java))
+        overlay.update(config, plan.copy(nextChange = origin.plusSeconds(3600)))
+        overlay.close()
+        clearInvocations(windows)
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper())
+            .idleFor(java.time.Duration.ofHours(1))
+        verify(windows, never()).updateViewLayout(any(android.view.View::class.java), any(WindowManager.LayoutParams::class.java))
+        verify(windows, never()).addView(any(android.view.View::class.java), any(WindowManager.LayoutParams::class.java))
+    }
+
+    @Test fun appOnlyFallbackFadesDimmingAndTintWithinTheTouchThroughLimit() {
+        val origin = java.time.Instant.parse("2026-10-27T03:00:00Z")
+        val overlay = NightOverlay(context, now = { origin.plusSeconds(30) })
+        val params = ArgumentCaptor.forClass(WindowManager.LayoutParams::class.java)
+        try {
+            overlay.update(SleepConfig(screen = true, mode = ScheduleMode.CUSTOM,
+                fadeInMinutes = 1, dim = 80, warmth = 100),
+                SleepPlan(true, origin.plusSeconds(3600), activeSince = origin))
+            verify(windows).addView(any(android.view.View::class.java), params.capture())
+            assertEquals(.4f, params.value.dimAmount, .005f)
+            assertEquals(.275f, params.value.alpha, .005f)
+            assertTrue(params.value.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE != 0)
+        } finally { overlay.close() }
+    }
+
     @Test fun unchangedFiltersAvoidWindowUpdatesAndAudioChangesDoNotRedrawTheFilter() {
         val overlay = NightOverlay(context)
         val config = SleepConfig(screen = true, dim = 50, warmth = 50)

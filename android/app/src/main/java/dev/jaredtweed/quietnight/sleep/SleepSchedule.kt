@@ -2,7 +2,9 @@ package dev.jaredtweed.quietnight.sleep
 
 import java.time.*
 
-data class SleepPlan(val active: Boolean, val nextChange: Instant?, val message: String? = null)
+data class SleepPlan(val active: Boolean, val nextChange: Instant?, val message: String? = null,
+                     val activeSince: Instant? = null,
+                     val windowStart: Instant? = null, val windowEnd: Instant? = null)
 
 object SleepSchedule {
     fun plan(config: SleepConfig, now: Instant = Instant.now(), zone: ZoneId = ZoneId.systemDefault()): SleepPlan {
@@ -34,11 +36,13 @@ object SleepSchedule {
             }
             if (end > start) start to end else null
         }
-        val active = windows.any { now >= it.first && now < it.second }
+        val activeWindow = windows.firstOrNull { now >= it.first && now < it.second }
+        val displayedWindow = activeWindow ?: windows.firstOrNull { it.first > now }
         val next = windows.flatMap { listOf(it.first, it.second) }.filter { it > now }.minOrNull()
         // Polar day/night: never invent a sunset; check again tomorrow and explain the pause.
-        return SleepPlan(active, next ?: date.plusDays(1).atTime(0, 5).atZone(zone).toInstant(),
+        return SleepPlan(activeWindow != null, next ?: date.plusDays(1).atTime(0, 5).atZone(zone).toInstant(),
             if (windows.isEmpty()) "No sunrise or sunset nearby today; use a custom schedule"
-            else reference?.let { "Approximate · ${it.name} time zone" })
+            else reference?.let { "Approximate · ${it.name} time zone" }, activeWindow?.first,
+            displayedWindow?.first, displayedWindow?.second)
     }
 }

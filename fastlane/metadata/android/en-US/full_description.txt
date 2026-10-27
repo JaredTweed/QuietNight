@@ -1,6 +1,6 @@
 Quiet Night combines a warmer screen, extra dimming, and media volume below Android's usual minimum in a minimal Material interface.
 
-Screen and audio controls are independent. Choose a red-orange tint and dim level, then keep screen controls on manually or schedule them for custom hours or sunset to sunrise. Location is optional and used only for local sun-time calculations; coordinates can also be entered manually.
+Screen and audio controls are independent. Choose a red-orange tint and dim level, then keep screen controls on manually or schedule them for custom hours or sunset to sunrise. Scheduled filters can fade in over up to 60 minutes, with Instant as the default. Sunset and sunrise times are shown in your phone’s time format. Location is optional and used only for local sun-time calculations; coordinates can also be entered manually.
 
 Full-screen dimming, including notifications and Quick Settings, uses an optional accessibility service. It draws a touch-through filter. While Quiet steps is on, it also handles a two-second volume-down hold to mute media outside the app. Other keys are ignored, no keys are recorded, and normal key behavior continues. Key handling switches off with Quiet steps. It requests no screen-reading or gesture-injection capabilities. Display-over-other-apps access provides an app-only alternative. The filter does not change system brightness or adaptive brightness.
 

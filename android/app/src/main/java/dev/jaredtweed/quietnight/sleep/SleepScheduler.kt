@@ -51,7 +51,7 @@ object SleepScheduler {
         val screenOn = screenRunnable(context, config)
         val audioOn = audioRunnable(context, config)
         // Apply trusted filtering immediately on wake; service startup is asynchronous.
-        ScreenOverlayService.update(config.copy(screen = screenOn && plan.active))
+        ScreenOverlayService.update(config.copy(screen = screenOn && plan.active), plan)
         if (!screenOn && !audioOn) {
             context.stopService(Intent(context, VolumeControlService::class.java))
             return

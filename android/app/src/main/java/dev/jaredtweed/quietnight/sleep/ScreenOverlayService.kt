@@ -120,9 +120,9 @@ class ScreenOverlayService : AccessibilityService() {
         fun cancelSchedule() { connected?.schedule?.cancel() }
 
         /** Returns whether the trusted service owns the screen filter. Called on the main thread. */
-        fun update(config: SleepConfig): Boolean {
+        fun update(config: SleepConfig, plan: SleepPlan? = null): Boolean {
             val service = connected ?: return false
-            return service.overlay.update(config)
+            return service.overlay.update(config, plan)
         }
         fun hide() { connected?.overlay?.close() }
     }

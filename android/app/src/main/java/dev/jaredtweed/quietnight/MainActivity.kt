@@ -167,18 +167,19 @@ class MainActivity : AppCompatActivity() {
     private fun formatTime(minutes: Int): String = LocalTime.of(minutes / 60, minutes % 60).format(
         DateTimeFormatter.ofPattern(if (android.text.format.DateFormat.is24HourFormat(this)) "HH:mm" else "h:mm a", Locale.getDefault()))
     private fun slider(parent: LinearLayout, label: String, value: Int, max: Int, unit: String = "%", step: Float = 1f,
-                       color: Int = NightColors.amber, changed: (Int) -> Unit): Pair<Slider, TextView> {
+                       color: Int = NightColors.amber, format: (Int) -> String = { "$it$unit" },
+                       changed: (Int) -> Unit): Pair<Slider, TextView> {
         val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         row.addView(text(label, 14f, bold = true), LinearLayout.LayoutParams(0, -2, 1f))
-        val amount = text("$value$unit", 18f, color, true); row.addView(amount); parent.add(row, 19)
+        val amount = text(format(value), 18f, color, true); row.addView(amount); parent.add(row, 19)
         val s = Slider(this).apply {
             valueFrom = 0f; valueTo = max.toFloat(); stepSize = step; this.value = value.toFloat()
             isTickVisible = false
             contentDescription = label
             thumbTintList = ColorStateList.valueOf(color); trackActiveTintList = ColorStateList.valueOf(color)
             trackInactiveTintList = ColorStateList.valueOf(NightColors.stroke)
-            setLabelFormatter { "${it.toInt()}$unit" }
-            addOnChangeListener { _, n, user -> if (user) { amount.text = "${n.toInt()}$unit"; changed(n.toInt()) } }
+            setLabelFormatter { format(it.toInt()) }
+            addOnChangeListener { _, n, user -> if (user) { amount.text = format(n.toInt()); changed(n.toInt()) } }
         }
         parent.add(s); return s to amount
     }
@@ -246,10 +247,17 @@ class MainActivity : AppCompatActivity() {
             }
         }
         schedule.add(modes, 12)
+        var customStartButton: Button? = null
+        fun startLabel(minutes: Int) = if (minutes == 0) "START" else "START FADE-IN"
         when (config.mode) {
             ScheduleMode.ALWAYS -> Unit
             ScheduleMode.SUN -> {
-                schedule.add(text("Sunset → sunrise", 14f, NightColors.secondary), 14)
+                val sunset = plan.windowStart?.atZone(ZoneId.systemDefault())?.toLocalTime()
+                val sunrise = plan.windowEnd?.atZone(ZoneId.systemDefault())?.toLocalTime()
+                val solarLabel = if (sunset != null && sunrise != null)
+                    "Sunset ${formatTime(sunset.hour * 60 + sunset.minute)} → Sunrise ${formatTime(sunrise.hour * 60 + sunrise.minute)}"
+                    else "Sunset → Sunrise"
+                schedule.add(text(solarLabel, 14f, NightColors.secondary), 14)
                 val sourceLabel = if (config.sunLocationSource == SunLocationSource.TIME_ZONE) "Time zone · automatic" else "Saved location"
                 schedule.add(button(sourceLabel) { showSunLocationSourceDialog() }, 6)
                 plan.message?.let { schedule.add(text(it, 12f, NightColors.secondary), 8) }
@@ -258,16 +266,24 @@ class MainActivity : AppCompatActivity() {
                 val dial = SleepWindowDial(this).apply { start = config.start; end = config.end }
                 schedule.addView(dial, LinearLayout.LayoutParams(-1, dp(232)).apply { topMargin = dp(8) })
                 val times = LinearLayout(this)
-                val startButton = button("START\n${formatTime(config.start)}") { pickTime(true) }
+                val startButton = button("${startLabel(config.fadeInMinutes)}\n${formatTime(config.start)}") { pickTime(true) }
+                customStartButton = startButton
                 val endButton = button("END\n${formatTime(config.end)}") { pickTime(false) }
                 times.addView(startButton, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(4) })
                 times.addView(endButton, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(4) })
                 schedule.add(times, 2)
                 dial.onChange = { start, end ->
-                    startButton.text = "START\n${formatTime(start)}"
+                    startButton.text = "${startLabel(SleepSettings.read(this).fadeInMinutes)}\n${formatTime(start)}"
                     endButton.text = "END\n${formatTime(end)}"
                     persist { it.copy(start = start, end = end) }
                 }
+            }
+        }
+        if (config.mode != ScheduleMode.ALWAYS) {
+            slider(schedule, "Fade-in time", config.fadeInMinutes, SleepConfig.MAX_FADE_IN_MINUTES,
+                color = NightColors.lavender, format = { if (it == 0) "Instant" else "$it min" }) { n ->
+                persist { it.copy(fadeInMinutes = n) }
+                customStartButton?.text = "${startLabel(n)}\n${formatTime(SleepSettings.read(this).start)}"
             }
         }
         if (config.mode != ScheduleMode.ALWAYS && !SleepScheduler.timingReady(this, config)) {

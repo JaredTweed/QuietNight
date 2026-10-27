@@ -1,5 +1,12 @@
 # Quiet Night
 
+## 2.2.0 (version code 55) — 2026-10-27
+
+- Add optional scheduled filter fade-in from Instant to 60 minutes, anchored to the scheduled start even after wake or restart.
+- Show calculated sunset and sunrise times in the phone’s time format.
+- Label custom schedule starts as START for instant filtering and START FADE-IN for gradual filtering.
+- Use the transparent moon-and-star notification icon with the app accent.
+
 ## 2.1.0 (version code 54) — 2026-10-26
 
 - Rename internal packages and source folders to match Quiet Night; retain settings and Bluetooth calibrations.

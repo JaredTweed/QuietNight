@@ -67,4 +67,19 @@ class SleepScheduleTest {
         }
         assertNull(SunTimes.event(LocalDate.now(), zone, Double.NaN, 0.0, true))
     }
+    @Test fun displayedSolarTimesBelongToTheActiveOrUpcomingNight() {
+        val config = SleepConfig(mode = ScheduleMode.SUN, sunLocationSource = SunLocationSource.SAVED_LOCATION,
+            latitude = 49.9, longitude = -97.14)
+        val date = LocalDate.of(2026, 10, 23)
+        val sunset = SunTimes.event(date, zone, 49.9, -97.14, false)
+        val sunrise = SunTimes.event(date.plusDays(1), zone, 49.9, -97.14, true)
+        for (time in listOf("2026-10-23T12:00", "2026-10-23T23:00", "2026-10-24T04:00")) {
+            val plan = SleepSchedule.plan(config, at(time), zone)
+            assertEquals(sunset, plan.windowStart)
+            assertEquals(sunrise, plan.windowEnd)
+        }
+        val following = SleepSchedule.plan(config, at("2026-10-24T12:00"), zone)
+        assertEquals(SunTimes.event(date.plusDays(1), zone, 49.9, -97.14, false), following.windowStart)
+    }
+
 }

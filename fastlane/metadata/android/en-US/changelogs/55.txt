@@ -1,0 +1,4 @@
+Add optional scheduled filter fade-in, from Instant to 60 minutes. Fade progress follows the scheduled start across wake and restart.
+Show calculated sunset and sunrise times using the phone’s time format.
+Use START for instant filtering and START FADE-IN for gradual filtering.
+Use the transparent moon-and-star notification icon with the app accent.

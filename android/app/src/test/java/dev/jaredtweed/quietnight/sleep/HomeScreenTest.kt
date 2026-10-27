@@ -239,4 +239,37 @@ class HomeScreenTest {
         }
     }
 
+    @Test fun fadeControlIsScheduledOnlyAndDefaultsToInstant() {
+        val app = RuntimeEnvironment.getApplication()
+        SleepSettings.write(app, SleepConfig())
+        ShadowSettings.setCanDrawOverlays(true)
+        val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
+        try {
+            val activity = controller.get()
+            assertTrue(views(activity.window.decorView).filterIsInstance<Slider>()
+                .none { it.contentDescription == "Fade-in time" })
+            views(activity.window.decorView).filterIsInstance<Button>()
+                .single { it.text.toString() == "Custom" }.performClick()
+            val fade = views(activity.window.decorView).filterIsInstance<Slider>()
+                .single { it.contentDescription == "Fade-in time" }
+            val start = views(activity.window.decorView).filterIsInstance<Button>().single { it.text.toString().startsWith("START\n") }
+            assertEquals(0f, fade.value)
+            assertEquals(60f, fade.valueTo)
+            assertTrue(views(activity.window.decorView).filterIsInstance<TextView>().any { it.text == "Instant" })
+            val arguments = android.os.Bundle().apply {
+                putFloat(android.view.accessibility.AccessibilityNodeInfo.ACTION_ARGUMENT_PROGRESS_VALUE, 10f)
+            }
+            assertTrue(fade.accessibilityNodeProvider!!.performAction(0,
+                android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.id, arguments))
+            assertTrue(start.text.toString().startsWith("START FADE-IN\n"))
+            assertEquals(10, SleepSettings.read(activity).fadeInMinutes)
+            assertTrue(views(activity.window.decorView).filterIsInstance<TextView>().any { it.text == "10 min" })
+            screenshots(activity, "quiet-night-fade", schedule = true)
+            arguments.putFloat(android.view.accessibility.AccessibilityNodeInfo.ACTION_ARGUMENT_PROGRESS_VALUE, 0f)
+            assertTrue(fade.accessibilityNodeProvider!!.performAction(0,
+                android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.id, arguments))
+            assertTrue(start.text.toString().startsWith("START\n"))
+        } finally { controller.pause().stop().destroy() }
+    }
+
 }

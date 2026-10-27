@@ -112,7 +112,7 @@ class VolumeControlService : Service() {
         } else if (!audioOn && audio != null) releaseAudio()
         publishAudio()
         val display = config.copy(screen = screenOn)
-        if (ScreenOverlayService.update(display)) overlay.close() else overlay.update(display)
+        if (ScreenOverlayService.update(display, plan)) overlay.close() else overlay.update(display, plan)
         val features = screenOn to audioOn
         if (notificationFeatures != features) {
             (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(802,
@@ -131,7 +131,9 @@ class VolumeControlService : Service() {
             config.screen -> "Your screen is softened for the evening"
             else -> "Quiet audio controls are on"
         }
-        return NotificationCompat.Builder(this, "quiet_night").setSmallIcon(R.drawable.ic_qs_tile)
+        // System UI's monochrome detection recognizes the vector itself, not an inset tile wrapper.
+        return NotificationCompat.Builder(this, "quiet_night").setSmallIcon(R.drawable.ic_night_symbol)
+            .setColor(getColor(R.color.gv_accent))
             .setContentTitle("Quiet Night is on").setContentText(detail)
             .setContentIntent(open).addAction(0, "Stop", stop).setOngoing(true).setSilent(true).build()
     }

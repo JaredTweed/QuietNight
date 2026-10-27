@@ -55,7 +55,7 @@ The design favors dim red-orange light, which contains less short-wavelength lig
 
 ## F-Droid submission
 
-Quiet Night 2.1.0 has been [submitted for F-Droid review](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/54381), using developer-signed reproducible builds and an entirely FOSS build. It is not yet listed; publication depends on F-Droid review and its build/signing process. See [F-Droid readiness and review notes](fdroid/README.md) for the recipe, verification evidence, release process, and remaining review requirements. The English Fastlane listing describes this fork; upstream listings are retained only in Git history.
+Quiet Night has been [submitted for F-Droid review](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/54381), using developer-signed reproducible builds and an entirely FOSS build. It is not yet listed; publication depends on F-Droid review and its build/signing process. See [F-Droid readiness and review notes](fdroid/README.md) for the recipe, verification evidence, release process, and remaining review requirements. The English Fastlane listing describes this fork; upstream listings are retained only in Git history.
 
 [Privacy policy](PRIVACY.md) · [Source](https://github.com/JaredTweed/QuietNight) · [Report an issue](https://github.com/JaredTweed/QuietNight/issues)
 
@@ -74,7 +74,7 @@ APK: `android/app/build/outputs/apk/fdroid/debug/app-fdroid-debug.apk`.
 adb install -r android/app/build/outputs/apk/fdroid/debug/app-fdroid-debug.apk
 ```
 
-Release builds use `:app:assembleFdroidRelease`. The [signed production APK](https://github.com/JaredTweed/QuietNight/releases/tag/quietnight-v2.1.0) is verified against an independent F-Droid rebuild. See the [maintainer signing procedure](fdroid/SIGNING.md) for future reproducible releases. The retained `fdroid` build flavor contains only open-source runtime dependencies.
+Release builds use `:app:assembleFdroidRelease`. The [signed production APK](https://github.com/JaredTweed/QuietNight/releases/tag/quietnight-v2.2.0) is verified against an independent F-Droid rebuild. See the [maintainer signing procedure](fdroid/SIGNING.md) for future reproducible releases. The retained `fdroid` build flavor contains only open-source runtime dependencies.
 
 Upgrades retain **Modify system settings** solely to restore a pending brightness transaction from an older version. New installs never request this access, and overlay dimming never creates or applies a brightness transaction. Manual brightness changes take precedence over legacy recovery.
 

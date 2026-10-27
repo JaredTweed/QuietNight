@@ -23,7 +23,8 @@ object SleepSettings {
             latitude = p.getString("latitude", null)?.toDoubleOrNull()?.takeIf { it.isFinite() && it in -90.0..90.0 },
             longitude = p.getString("longitude", null)?.toDoubleOrNull()?.takeIf { it.isFinite() && it in -180.0..180.0 },
             sunLocationSource = runCatching { SunLocationSource.valueOf(p.getString("sun_source", "TIME_ZONE")!!) }
-                .getOrDefault(SunLocationSource.TIME_ZONE)
+                .getOrDefault(SunLocationSource.TIME_ZONE),
+            fadeInMinutes = p.getInt("fade_in_minutes", 0).coerceIn(0, SleepConfig.MAX_FADE_IN_MINUTES)
         )
     }
     fun write(context: Context, value: SleepConfig) = prefs(context).edit {
@@ -35,6 +36,7 @@ object SleepSettings {
         remove("volume_down"); remove("bubble")
         putString("latitude", value.latitude?.toString()); putString("longitude", value.longitude?.toString())
         putString("sun_source", value.sunLocationSource.name)
+        putInt("fade_in_minutes", value.fadeInMinutes.coerceIn(0, SleepConfig.MAX_FADE_IN_MINUTES))
     }
     fun update(context: Context, change: (SleepConfig) -> SleepConfig) = write(context, change(read(context)))
 }

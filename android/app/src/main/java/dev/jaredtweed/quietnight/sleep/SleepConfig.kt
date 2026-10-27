@@ -17,5 +17,8 @@ data class SleepConfig(
     val end: Int = 7 * 60,
     val latitude: Double? = null,
     val longitude: Double? = null,
-    val sunLocationSource: SunLocationSource = SunLocationSource.TIME_ZONE
-)
+    val sunLocationSource: SunLocationSource = SunLocationSource.TIME_ZONE,
+    val fadeInMinutes: Int = 0
+) {
+    companion object { const val MAX_FADE_IN_MINUTES = 60 }
+}

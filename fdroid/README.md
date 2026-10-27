@@ -1,12 +1,12 @@
 # F-Droid submission preparation
 
-Quiet Night is a GPL-3.0-only fork maintained by Jared Tweed, with application ID `dev.jaredtweed.quietnight`. Developer-signed reproducible builds were selected in response to the F-Droid review. This directory documents the F-Droid build recipe and submission process. Quiet Night 2.1.0 (54) was submitted in [fdroiddata merge request #54381](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/54381). Publication depends on F-Droid review and its own build/signing pipeline.
+Quiet Night is a GPL-3.0-only fork maintained by Jared Tweed, with application ID `dev.jaredtweed.quietnight`. Developer-signed reproducible builds were selected in response to the F-Droid review. This directory documents the F-Droid build recipe and submission process. Quiet Night was submitted in [fdroiddata merge request #54381](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/54381). Publication depends on F-Droid review and its own build/signing pipeline.
 
 ## Build and listing
 
 The app builds from `android/app` with the `fdroid` Gradle flavor, SDK 36, SDK build-tools 35.0.0, OpenJDK 17, AGP 8.10.1, Kotlin 2.2.20, and checksum-verified Gradle 8.11.1. Runtime dependencies come from Google Maven and Maven Central. Debug builds have a separate `.debug` application ID. Release builds are optimized with R8 and resource shrinking and remain unsigned in Gradle/CI. The verified APK is signed locally using the private release key; see [SIGNING.md](SIGNING.md).
 
-English Fastlane metadata, current screenshots, the app icon, and the version-code 54 changelog live in `fastlane/metadata/android/en-US`. Inaccurate upstream listings and translations were removed; the interface is currently English. The current app keeps its unique package ID, distinct icon/name, and upstream authorship notices.
+English Fastlane metadata, current screenshots, the app icon, and the version-code 55 changelog live in `fastlane/metadata/android/en-US`. Inaccurate upstream listings and translations were removed; the interface is currently English. The current app keeps its unique package ID, distinct icon/name, and upstream authorship notices.
 
 Use the [current submission recipe](https://github.com/JaredTweed/QuietNight/blob/HEAD/fdroid/metadata/dev.jaredtweed.quietnight.yml) in a public fdroiddata fork. Only the app's YAML belongs in fdroiddata; the store listing is pulled from this repository. Copy the recipe unchanged after checking its pinned full source SHA. The `Binaries` URL selects the signed GitHub release APK, and `AllowedAPKSigningKeys` pins the public developer certificate. F-Droid must reproduce and verify the signed APK before publication.
 
