@@ -16,9 +16,9 @@ Binaries:
   https://github.com/JaredTweed/QuietNight/releases/download/quietnight-v%v/QuietNight-%v.apk
 
 Builds:
-  - versionName: 2.1.0
-    versionCode: 54
-    commit: f98bc0cf3c0ad9d2112c42ce59e14a6c96845d35
+  - versionName: 2.2.0
+    versionCode: 55
+    commit: 4cc2e21d1e8bb7f615c48407a50e08c80d96f6aa
     subdir: android/app
     gradle:
       - fdroid
@@ -27,5 +27,5 @@ AllowedAPKSigningKeys: f90cc5f530bc227418eb1d0a016a790b052e6591a5c038a9979ab6e55
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^quietnight-v[0-9].*$
-CurrentVersion: 2.1.0
-CurrentVersionCode: 54
+CurrentVersion: 2.2.0
+CurrentVersionCode: 55

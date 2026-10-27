@@ -25,7 +25,7 @@ export ANDROID_HOME=/path/to/android-sdk
 python3 tools/sign_release.py \
   --reference /path/to/github-ci-unsigned.apk \
   --reproduced /path/to/fdroid-rebuilt-unsigned.apk \
-  --output .fdroid-release/QuietNight-2.1.0.apk
+  --output .fdroid-release/QuietNight-2.2.0.apk
 ```
 
 The helper refuses different unsigned bytes, debug application IDs, already signed inputs, an incorrect certificate, and replacement of an existing output. It uses `apksigner --alignment-preserved true`: build-tools 35 otherwise rewrites ZIP alignment padding and prevents signature copying. The complete APK is verified before it is atomically made available at the output path. Passwords are passed through a process environment variable, never command-line arguments or output.
@@ -34,7 +34,7 @@ The helper refuses different unsigned bytes, debug application IDs, already sign
 
 ```sh
 apksigcopier compare --unsigned \
-  .fdroid-release/QuietNight-2.1.0.apk /path/to/fdroid-rebuilt-unsigned.apk
+  .fdroid-release/QuietNight-2.2.0.apk /path/to/fdroid-rebuilt-unsigned.apk
 ```
 
 6. Publish `QuietNight-VERSION.apk`, the public certificate, and checksums as assets of the existing matching GitHub source tag. Confirm the public download's SHA-256 matches the verified local file. The F-Droid reference URL is `https://github.com/JaredTweed/QuietNight/releases/download/quietnight-v%v/QuietNight-%v.apk`.
