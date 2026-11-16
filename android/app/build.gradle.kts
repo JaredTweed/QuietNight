@@ -11,8 +11,8 @@ android {
         applicationId = "dev.jaredtweed.quietnight"
         minSdk = 28
         targetSdk = 36
-        versionCode = 55
-        versionName = "2.2.0"
+        versionCode = 56
+        versionName = "2.2.1"
     }
     flavorDimensions += "distribution"
     productFlavors { create("fdroid") { dimension = "distribution" } }

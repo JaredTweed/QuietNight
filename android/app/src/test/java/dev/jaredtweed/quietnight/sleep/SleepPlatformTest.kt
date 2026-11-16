@@ -125,15 +125,27 @@ class SleepPlatformTest {
         assertFalse(SleepSettings.read(context).screen)
         assertTrue(SleepSettings.read(context).audio)
     }
-    @Test fun maximumDimUsesOverlayDimLayerAndTranslucentTouchThroughWindow() {
+    @Test fun reportedOrdinaryFilterSettingsDoNotCreateATouchBlockingDimLayer() {
+        val overlay = NightOverlay(context)
+        try {
+            overlay.update(SleepConfig(screen = true, dim = 25, warmth = 45))
+            val params = ArgumentCaptor.forClass(WindowManager.LayoutParams::class.java)
+            verify(windows).addView(any(android.view.View::class.java), params.capture())
+            assertEquals(0, params.value.flags and WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            assertEquals(0f, params.value.dimAmount)
+            assertEquals(.435f, params.value.alpha, .005f)
+            assertTrue(params.value.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE != 0)
+        } finally { overlay.close() }
+    }
+    @Test fun maximumOrdinaryFilterUsesOneTouchThroughWindowWithoutASystemDimLayer() {
         val overlay = NightOverlay(context)
         overlay.update(SleepConfig(screen = true, dim = 85, warmth = 100))
         val params = ArgumentCaptor.forClass(WindowManager.LayoutParams::class.java)
         verify(windows).addView(any(android.view.View::class.java), params.capture())
-        assertEquals(.85f, params.value.dimAmount)
+        assertEquals(0f, params.value.dimAmount)
         assertTrue(params.value.alpha <= .8f)
         assertTrue(params.value.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE != 0)
-        assertTrue(params.value.flags and WindowManager.LayoutParams.FLAG_DIM_BEHIND != 0)
+        assertEquals(0, params.value.flags and WindowManager.LayoutParams.FLAG_DIM_BEHIND)
     }
     @Test @Config(sdk = [28, 33])
     fun trustedOverlayDimsSystemUiWithAnActualBlackFilterAndLeavesBrightnessAlone() {
@@ -283,8 +295,8 @@ class SleepPlatformTest {
                 fadeInMinutes = 1, dim = 80, warmth = 100),
                 SleepPlan(true, origin.plusSeconds(3600), activeSince = origin))
             verify(windows).addView(any(android.view.View::class.java), params.capture())
-            assertEquals(.4f, params.value.dimAmount, .005f)
-            assertEquals(.275f, params.value.alpha, .005f)
+            assertEquals(0f, params.value.dimAmount, .005f)
+            assertEquals(.4f, params.value.alpha, .005f)
             assertTrue(params.value.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE != 0)
         } finally { overlay.close() }
     }

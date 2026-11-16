@@ -1,0 +1,1 @@
+Fix ordinary-overlay filtering blocking taps, including the Filter off control, on Android 17. Use a single translucent window capped at Android’s touch-through opacity limit. Full-screen accessibility filtering keeps its full range.

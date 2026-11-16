@@ -1,5 +1,11 @@
 # Quiet Night
 
+## 2.2.1 (version code 56) — 2026-11-15
+
+- Fix ordinary-overlay filtering blocking app taps on Android 17: use a single translucent window instead of a system dim layer.
+- Respect Android’s maximum touch-through opacity for combined dimming and warmth; accessibility filtering retains its full range.
+- Cover the reported 45% warmth / 25% dim configuration and fading with regression tests.
+
 ## 2.2.0 (version code 55) — 2026-10-27
 
 - Add optional scheduled filter fade-in from Instant to 60 minutes, anchored to the scheduled start even after wake or restart.

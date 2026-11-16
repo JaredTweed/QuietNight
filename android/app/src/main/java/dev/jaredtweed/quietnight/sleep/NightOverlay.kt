@@ -3,6 +3,7 @@ package dev.jaredtweed.quietnight.sleep
 import android.content.Context
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.hardware.input.InputManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -53,9 +54,13 @@ class NightOverlay(
             Appearance((finalColor and 0x00FFFFFF) or
                 ((Color.alpha(finalColor) * progress).roundToInt() shl 24), 0f, 1f)
         } else {
-            Appearance(if (request.warmth == 0) Color.TRANSPARENT else Color.rgb(255, 67, 15),
-                request.dim / 100f * progress,
-                (if (request.warmth == 0) .01f else request.warmth / 100f * .55f) * progress)
+            // A system dim layer can block untrusted touches even when our view cannot.
+            // Use one window whose total opacity respects Android's obscuring limit instead.
+            val limit = if (Build.VERSION.SDK_INT >= 31)
+                context.getSystemService(InputManager::class.java).maximumObscuringOpacityForTouch
+                else .8f
+            Appearance(finalColor or 0xFF000000.toInt(), 0f,
+                minOf(Color.alpha(finalColor) / 255f, limit, .8f) * progress)
         }
         if (applied != appearance) {
             val view = filter ?: View(context).also { filter = it }
@@ -66,7 +71,7 @@ class NightOverlay(
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                     (if (systemUi) WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-                    else WindowManager.LayoutParams.FLAG_DIM_BEHIND), PixelFormat.TRANSLUCENT).apply {
+                    else 0), PixelFormat.TRANSLUCENT).apply {
                 gravity = Gravity.TOP or Gravity.START
                 dimAmount = appearance.dimAmount
                 alpha = appearance.windowAlpha
