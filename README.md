@@ -74,7 +74,7 @@ APK: `android/app/build/outputs/apk/fdroid/debug/app-fdroid-debug.apk`.
 adb install -r android/app/build/outputs/apk/fdroid/debug/app-fdroid-debug.apk
 ```
 
-Release builds use `:app:assembleFdroidRelease`. The [signed production APK](https://github.com/JaredTweed/QuietNight/releases/tag/quietnight-v2.2.0) is verified against an independent F-Droid rebuild. See the [maintainer signing procedure](fdroid/SIGNING.md) for future reproducible releases. The retained `fdroid` build flavor contains only open-source runtime dependencies.
+Release builds use `:app:assembleFdroidRelease`. The [signed production APK](https://github.com/JaredTweed/QuietNight/releases/tag/quietnight-v2.2.1) is verified against an independent F-Droid rebuild. See the [maintainer signing procedure](fdroid/SIGNING.md) for future reproducible releases. The retained `fdroid` build flavor contains only open-source runtime dependencies.
 
 Upgrades retain **Modify system settings** solely to restore a pending brightness transaction from an older version. New installs never request this access, and overlay dimming never creates or applies a brightness transaction. Manual brightness changes take precedence over legacy recovery.
 
